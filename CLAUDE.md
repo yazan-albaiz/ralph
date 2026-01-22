@@ -173,8 +173,17 @@ export const DEFAULT_CONFIG = {
   showSplash: true,
   enableNotifications: true,
   enableSound: true,
+  sandbox: false,
 };
 ```
+
+### Docker Sandbox Mode
+
+Run Claude inside a Docker container for isolated execution:
+- Requires Docker Desktop 4.50+ with sandbox plugin
+- Enable with `--sandbox` flag
+- Uses `docker sandbox run --credentials host` to pass credentials
+- Related files: `src/lib/docker.ts`, `src/lib/prompt.ts`
 
 ## History
 

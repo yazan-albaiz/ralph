@@ -28,6 +28,7 @@ describe('Pre-flight Checks', () => {
     prompt: 'Test prompt',
     isFile: false,
     projectRoot: process.cwd(),
+    sandbox: false,
     ...overrides,
   });
 

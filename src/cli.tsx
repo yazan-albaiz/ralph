@@ -18,6 +18,8 @@ import { App } from './app.js';
 import { runPreflightChecks, formatPreflightResults } from './lib/preflight.js';
 import { logger, setDebugEnabled } from './lib/logger.js';
 import { setNotificationsEnabled, setSoundEnabled } from './lib/notifications.js';
+import { runDockerPreflightChecks } from './lib/docker.js';
+import { promptSandboxFallback } from './lib/prompt.js';
 
 // Package version (will be replaced by build)
 const VERSION = '1.0.3';
@@ -40,6 +42,8 @@ program
   .option('--no-sound', 'Disable sound alerts')
   .option('--debug', 'Enable debug logging')
   .option('--preflight-only', 'Only run pre-flight checks')
+  .option('--sandbox', 'Run Claude in Docker sandbox for isolation')
+  .option('--no-sandbox', 'Disable Docker sandbox (default)')
   .action(async (promptArg: string | undefined, options) => {
     // Enable debug if requested
     if (options.debug) {
@@ -85,7 +89,24 @@ program
       prompt,
       isFile,
       projectRoot: process.cwd(),
+      sandbox: options.sandbox || false,
     };
+
+    // Run Docker sandbox preflight checks if sandbox mode is enabled
+    if (config.sandbox) {
+      const dockerResult = await runDockerPreflightChecks();
+      if (!dockerResult.passed) {
+        const choice = await promptSandboxFallback(dockerResult);
+        if (choice === 'exit') {
+          process.exit(1);
+        }
+        // Continue without sandbox
+        config.sandbox = false;
+        logger.info('Continuing without Docker sandbox');
+      } else {
+        logger.info('Docker sandbox mode enabled');
+      }
+    }
 
     // Run pre-flight checks
     const preflightResult = await runPreflightChecks(config);

@@ -3,7 +3,7 @@
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
-import type { ClaudeProcessOptions, ClaudeProcessResult } from '../types/index.js';
+import type { ClaudeProcessOptions, ClaudeProcessResult, SpawnConfig } from '../types/index.js';
 import { parsePromiseTag } from './promiseParser.js';
 import { logger } from './logger.js';
 
@@ -33,18 +33,34 @@ export function buildClaudeArgs(options: ClaudeProcessOptions): string[] {
   return args;
 }
 
+export function buildSpawnConfig(options: ClaudeProcessOptions): SpawnConfig {
+  const claudeArgs = buildClaudeArgs(options);
+
+  if (options.sandbox) {
+    return {
+      command: 'docker',
+      args: ['sandbox', 'run', '--credentials', 'host', 'claude', ...claudeArgs],
+    };
+  }
+
+  return {
+    command: 'claude',
+    args: claudeArgs,
+  };
+}
+
 export async function runClaude(options: ClaudeProcessOptions): Promise<ClaudeProcessResult> {
   const startTime = Date.now();
-  const args = buildClaudeArgs(options);
+  const spawnConfig = buildSpawnConfig(options);
 
-  logger.debug('Running Claude CLI', { args: ['claude', ...args].join(' ') });
+  logger.debug('Running Claude CLI', { args: [spawnConfig.command, ...spawnConfig.args].join(' ') });
 
   return new Promise((resolve) => {
     let stdout = '';
     let stderr = '';
     let hasError = false;
 
-    const proc = spawn('claude', args, {
+    const proc = spawn(spawnConfig.command, spawnConfig.args, {
       cwd: options.projectRoot,
       env: { ...process.env, TERM: 'dumb' },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -222,6 +238,7 @@ export const claude = {
   runClaudeWithTimeout,
   killActiveProcess,
   buildClaudeArgs,
+  buildSpawnConfig,
   isClaudeAvailable,
   getClaudeVersion,
   createMockClaudeRunner,

@@ -88,6 +88,7 @@ export function useClaudeLoop(options: UseClaudeLoopOptions): UseClaudeLoopRetur
         model: config.model,
         dangerouslySkipPermissions: config.dangerouslySkipPermissions,
         projectRoot: config.projectRoot,
+        sandbox: config.sandbox,
         onOutput: (chunk) => {
           logger.debug(`[STREAM] Received chunk: ${chunk.length} chars`);
           setState((prev) => ({ ...prev, output: [...prev.output, chunk] }));

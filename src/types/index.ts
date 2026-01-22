@@ -15,6 +15,7 @@ export interface RalphConfig {
   prompt: string;
   isFile: boolean;
   projectRoot: string;
+  sandbox: boolean;
 }
 
 // Default configuration values
@@ -27,6 +28,7 @@ export const DEFAULT_CONFIG: Omit<RalphConfig, 'prompt' | 'isFile' | 'projectRoo
   showSplash: true,
   enableNotifications: true,
   enableSound: true,
+  sandbox: false,
 };
 
 // Timing and Performance
@@ -143,6 +145,7 @@ export interface ClaudeProcessOptions {
   model: string;
   dangerouslySkipPermissions: boolean;
   projectRoot: string;
+  sandbox?: boolean;
   onOutput?: (chunk: string) => void;
   onError?: (error: string) => void;
 }
@@ -153,4 +156,24 @@ export interface ClaudeProcessResult {
   error: string | null;
   duration: number;
   promiseTag: ParsedPromiseTag | null;
+}
+
+// Docker Sandbox Types
+export interface DockerPreflightResult {
+  passed: boolean;
+  dockerInstalled: boolean;
+  dockerRunning: boolean;
+  sandboxPluginAvailable: boolean;
+  dockerVersion: string | null;
+  dockerDesktopVersion: string | null;
+  meetsMinimumVersion: boolean;
+  errors: string[];
+}
+
+export type SandboxFallbackChoice = 'continue-without-sandbox' | 'exit';
+
+// Spawn Configuration for Docker sandbox mode
+export interface SpawnConfig {
+  command: string;
+  args: string[];
 }
