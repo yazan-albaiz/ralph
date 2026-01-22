@@ -20,7 +20,7 @@ import { logger, setDebugEnabled } from './lib/logger.js';
 import { setNotificationsEnabled, setSoundEnabled } from './lib/notifications.js';
 
 // Package version (will be replaced by build)
-const VERSION = '1.0.2';
+const VERSION = '1.0.3';
 
 // CLI program
 const program = new Command();
