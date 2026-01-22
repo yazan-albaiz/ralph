@@ -22,7 +22,7 @@ import { runDockerPreflightChecks } from './lib/docker.js';
 import { promptSandboxFallback } from './lib/prompt.js';
 
 // Package version (will be replaced by build)
-const VERSION = '1.0.3';
+const VERSION = '1.0.4';
 
 // CLI program
 const program = new Command();
