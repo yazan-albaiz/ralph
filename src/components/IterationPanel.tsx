@@ -14,6 +14,7 @@ interface IterationPanelProps {
   duration: number;
   promiseTag?: ParsedPromiseTag | null;
   output?: string[];
+  unlimited?: boolean;
 }
 
 /**
@@ -62,6 +63,7 @@ export function IterationPanel({
   duration,
   promiseTag,
   output = [],
+  unlimited = false,
 }: IterationPanelProps) {
   const statusDisplay = getStatusDisplay(status);
 
@@ -83,15 +85,21 @@ export function IterationPanel({
           <Text color="yellow" bold>
             {iteration}
           </Text>
-          <Text color="gray">/{maxIterations}</Text>
+          {unlimited ? (
+            <Text color="cyan"> ∞</Text>
+          ) : (
+            <Text color="gray">/{maxIterations}</Text>
+          )}
         </Box>
         <Text color="gray">{formatDuration(duration)}</Text>
       </Box>
 
-      {/* Progress bar */}
-      <Box marginY={1}>
-        <ProgressBar current={iteration} total={maxIterations} width={40} />
-      </Box>
+      {/* Progress bar - only show when not unlimited */}
+      {!unlimited && (
+        <Box marginY={1}>
+          <ProgressBar current={iteration} total={maxIterations} width={40} />
+        </Box>
+      )}
 
       {/* Status */}
       <Box>
@@ -127,10 +135,12 @@ export function CompactIterationPanel({
   iteration,
   maxIterations,
   status,
+  unlimited = false,
 }: {
   iteration: number;
   maxIterations: number;
   status: LoopStatus;
+  unlimited?: boolean;
 }) {
   const statusDisplay = getStatusDisplay(status);
 
@@ -139,7 +149,11 @@ export function CompactIterationPanel({
       <Text color={statusDisplay.color as never}>{statusDisplay.icon}</Text>
       <Text>
         Iteration <Text color="yellow" bold>{iteration}</Text>
-        <Text color="gray">/{maxIterations}</Text>
+        {unlimited ? (
+          <Text color="cyan"> ∞</Text>
+        ) : (
+          <Text color="gray">/{maxIterations}</Text>
+        )}
       </Text>
     </Box>
   );

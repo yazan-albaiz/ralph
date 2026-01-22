@@ -198,7 +198,7 @@ export function App({ config }: AppProps) {
             <Text color="gray">Model: </Text>
             <Text color="cyan">{config.model}</Text>
             <Text color="gray"> | Max iterations: </Text>
-            <Text color="yellow">{config.maxIterations}</Text>
+            <Text color="yellow">{config.unlimited ? '∞ (unlimited)' : config.maxIterations}</Text>
           </Box>
         </Box>
       </Box>
@@ -239,6 +239,7 @@ export function App({ config }: AppProps) {
             status={displayStatus}
             duration={iterationDuration}
             promiseTag={loop.state.lastPromiseTag}
+            unlimited={config.unlimited}
           />
           <Box marginTop={1}>
             <TimingStats stats={timingStats} compact />

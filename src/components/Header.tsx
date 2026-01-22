@@ -13,6 +13,13 @@ interface HeaderProps {
   totalElapsed: number;
 }
 
+/**
+ * Format iteration display based on unlimited mode
+ */
+function formatIterationDisplay(iteration: number, maxIterations: number, unlimited: boolean): string {
+  return unlimited ? `${iteration}` : `${iteration}/${maxIterations}`;
+}
+
 // Status colors and icons
 const STATUS_CONFIG: Record<LoopStatus, { icon: string; color: string }> = {
   idle: { icon: '○', color: 'gray' },
@@ -86,7 +93,11 @@ export function Header({ config, status, iteration, totalElapsed }: HeaderProps)
             <Text color="yellow" bold>
               {iteration}
             </Text>
-            <Text color="gray">/{config.maxIterations}</Text>
+            {config.unlimited ? (
+              <Text color="cyan"> ∞</Text>
+            ) : (
+              <Text color="gray">/{config.maxIterations}</Text>
+            )}
           </Box>
         </Box>
         <Box>
@@ -116,11 +127,13 @@ export function CompactHeader({
   iteration,
   maxIterations,
   elapsed,
+  unlimited = false,
 }: {
   status: LoopStatus;
   iteration: number;
   maxIterations: number;
   elapsed: number;
+  unlimited?: boolean;
 }) {
   const statusConfig = STATUS_CONFIG[status];
 
@@ -132,7 +145,11 @@ export function CompactHeader({
       <Text color="gray">|</Text>
       <Text>
         <Text color="yellow">{iteration}</Text>
-        <Text color="gray">/{maxIterations}</Text>
+        {unlimited ? (
+          <Text color="cyan"> ∞</Text>
+        ) : (
+          <Text color="gray">/{maxIterations}</Text>
+        )}
       </Text>
       <Text color="gray">|</Text>
       <Text color="white">{formatDuration(elapsed)}</Text>

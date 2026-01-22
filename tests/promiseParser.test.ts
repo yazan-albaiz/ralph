@@ -207,25 +207,44 @@ describe('Promise Parser', () => {
   });
 
   describe('preparePrompt', () => {
-    test('injects PROJECT_ROOT and completion suffix', () => {
+    test('appends completion suffix without context injection (canonical ralph)', () => {
       const originalPrompt = 'Build a REST API';
-      const projectRoot = '/home/user/project';
       const signal = '<promise>COMPLETE</promise>';
 
-      const prepared = preparePrompt(originalPrompt, projectRoot, signal);
+      const prepared = preparePrompt(originalPrompt, signal);
 
-      expect(prepared).toContain('PROJECT_ROOT=/home/user/project');
+      // Should NOT contain iteration context (canonical ralph pattern)
+      expect(prepared).not.toContain('ITERATION:');
+      expect(prepared).not.toContain('PROJECT_ROOT=');
+      expect(prepared).not.toContain('=== RALPH AUTONOMOUS LOOP ===');
+
+      // Should contain original prompt and completion suffix
       expect(prepared).toContain('Build a REST API');
       expect(prepared).toContain(signal);
+      expect(prepared).toContain('BLOCKED');
+      expect(prepared).toContain('DECIDE');
     });
 
-    test('preserves original prompt content', () => {
+    test('preserves original prompt content exactly', () => {
       const originalPrompt = 'Line 1\nLine 2\nLine 3';
-      const prepared = preparePrompt(originalPrompt, '/test', 'DONE');
+      const prepared = preparePrompt(originalPrompt, 'DONE');
 
       expect(prepared).toContain('Line 1');
       expect(prepared).toContain('Line 2');
       expect(prepared).toContain('Line 3');
+      // Prompt should start with the original content
+      expect(prepared.startsWith('Line 1')).toBe(true);
+    });
+
+    test('only adds completion suffix to static prompt', () => {
+      const originalPrompt = 'Simple task';
+      const signal = '<promise>COMPLETE</promise>';
+
+      const prepared = preparePrompt(originalPrompt, signal);
+
+      // The prepared prompt should be: original + completion suffix
+      // Nothing else should be prepended
+      expect(prepared.indexOf('Simple task')).toBe(0);
     });
   });
 });

@@ -11,7 +11,8 @@ import type {
   ClaudeProcessResult,
 } from '../types/index.js';
 import { runClaude, killActiveProcess } from '../lib/claude.js';
-import { preparePrompt, requiresUserIntervention, indicatesCompletion } from '../lib/promiseParser.js';
+import { preparePrompt, requiresUserIntervention, indicatesCompletion, parseCommitMessage } from '../lib/promiseParser.js';
+import { isGitRepo, getGitStatus, commitChanges, generateDefaultCommitMessage } from '../lib/git.js';
 import {
   createHistoryEntry,
   addIterationToHistory,
@@ -77,11 +78,8 @@ export function useClaudeLoop(options: UseClaudeLoopOptions): UseClaudeLoopRetur
       const iterationStartTime = new Date();
       onIterationStart?.(iteration);
 
-      const preparedPrompt = preparePrompt(prompt, config.projectRoot, config.completionSignal, {
-        currentIteration: iteration,
-        maxIterations: config.maxIterations,
-        isFirstIteration: iteration === 1,
-      });
+      // Canonical ralph: prompt is static, no context injection
+      const preparedPrompt = preparePrompt(prompt, config.completionSignal);
 
       const result = await runClaude({
         prompt: preparedPrompt,
@@ -118,6 +116,25 @@ export function useClaudeLoop(options: UseClaudeLoopOptions): UseClaudeLoopRetur
         historyRef.current = addIterationToHistory(historyRef.current, iterationRecord);
       }
 
+      // Handle auto-commit
+      if (config.autoCommit && isGitRepo(config.projectRoot)) {
+        const status = getGitStatus(config.projectRoot);
+
+        if (status.hasChanges) {
+          // Use Claude's commit message if provided, otherwise generate one
+          const commitMessage = parseCommitMessage(result.output) ||
+            generateDefaultCommitMessage(config.projectRoot, iteration);
+
+          const commitResult = commitChanges(config.projectRoot, commitMessage);
+
+          if (commitResult.success) {
+            logger.info(`Committed: ${commitMessage}`);
+          } else {
+            logger.warn(`Failed to commit: ${commitResult.error}`);
+          }
+        }
+      }
+
       return result;
     },
     [config, onIterationStart, onIterationEnd, onOutput]
@@ -145,7 +162,11 @@ export function useClaudeLoop(options: UseClaudeLoopOptions): UseClaudeLoopRetur
       let iteration = 0;
       let lastResult: ClaudeProcessResult | null = null;
 
-      while (isRunningRef.current && iteration < config.maxIterations) {
+      // Canonical ralph: unlimited mode runs until completion signal
+      const shouldContinue = () =>
+        isRunningRef.current && (config.unlimited || iteration < config.maxIterations);
+
+      while (shouldContinue()) {
         while (isPausedRef.current && isRunningRef.current) {
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
@@ -154,7 +175,8 @@ export function useClaudeLoop(options: UseClaudeLoopOptions): UseClaudeLoopRetur
 
         iteration++;
         setState((prev) => ({ ...prev, currentIteration: iteration }));
-        logger.info(`Starting iteration ${iteration}/${config.maxIterations}`);
+        const iterationDisplay = config.unlimited ? `${iteration} (unlimited)` : `${iteration}/${config.maxIterations}`;
+        logger.info(`Starting iteration ${iterationDisplay}`);
 
         try {
           lastResult = await runIteration(iteration, prompt);
@@ -192,7 +214,8 @@ export function useClaudeLoop(options: UseClaudeLoopOptions): UseClaudeLoopRetur
         }
       }
 
-      if (iteration >= config.maxIterations) {
+      // Only check max iterations if not in unlimited mode
+      if (!config.unlimited && iteration >= config.maxIterations) {
         logger.warn(`Max iterations (${config.maxIterations}) reached`);
         updateStatus('max_reached');
         await finalizeAndSave('max_reached');

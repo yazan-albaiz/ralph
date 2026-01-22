@@ -1,14 +1,13 @@
 /**
  * Promise Tag Parser - Parse semantic promise tags from Claude output
+ *
+ * Canonical Ralph Pattern:
+ * - Prompts are STATIC (no iteration/context injection)
+ * - Only the completion suffix is appended to teach Claude about promise tags
+ * - Progress is tracked via FILES (progress.txt), not injected context
  */
 
 import type { ParsedPromiseTag } from '../types/index.js';
-
-export interface LoopContext {
-  currentIteration: number;
-  maxIterations: number;
-  isFirstIteration: boolean;
-}
 
 const PROMISE_TAG_PATTERNS = {
   COMPLETE: /<promise>\s*COMPLETE\s*<\/promise>/i,
@@ -17,6 +16,12 @@ const PROMISE_TAG_PATTERNS = {
 };
 
 const ANY_PROMISE_TAG = /<promise>(.+?)<\/promise>/gi;
+const COMMIT_MESSAGE_PATTERN = /<commit_message>([\s\S]*?)<\/commit_message>/i;
+
+export interface ParsedTags {
+  promiseTag: ParsedPromiseTag;
+  commitMessage: string | null;
+}
 
 export function parsePromiseTag(output: string): ParsedPromiseTag {
   const completeMatch = output.match(PROMISE_TAG_PATTERNS.COMPLETE);
@@ -35,6 +40,29 @@ export function parsePromiseTag(output: string): ParsedPromiseTag {
   }
 
   return { type: null, content: null, raw: null };
+}
+
+/**
+ * Parse commit message from output
+ * Format: <commit_message>Your commit message here</commit_message>
+ */
+export function parseCommitMessage(output: string): string | null {
+  const match = output.match(COMMIT_MESSAGE_PATTERN);
+  if (match && match[1]) {
+    // Clean up the message: trim whitespace, normalize newlines
+    return match[1].trim().replace(/\n+/g, ' ').substring(0, 200);
+  }
+  return null;
+}
+
+/**
+ * Parse all Ralph-specific tags from Claude's output
+ */
+export function parseAllTags(output: string): ParsedTags {
+  return {
+    promiseTag: parsePromiseTag(output),
+    commitMessage: parseCommitMessage(output),
+  };
 }
 
 export function containsCompletionSignal(output: string, signal: string): boolean {
@@ -72,53 +100,49 @@ export function createCompletionSuffix(signal: string): string {
 ---
 IMPORTANT INSTRUCTIONS FOR RALPH LOOP:
 
-When you have completed ALL tasks successfully, output exactly:
-${signal}
+When you have completed work in this iteration:
 
-If you are BLOCKED and cannot continue without human intervention, output:
-<promise>BLOCKED: [brief reason why you're blocked]</promise>
+1. If you made code changes that should be committed, provide a commit message:
+   <commit_message>Brief description of changes</commit_message>
 
-If you need a DECISION from the user before continuing, output:
-<promise>DECIDE: [brief question for the user]</promise>
+2. If ALL tasks are fully complete, output:
+   ${signal}
 
-Do not output any promise tags until you've attempted to complete the tasks or determined you cannot proceed.
+3. If you are BLOCKED and cannot continue without human intervention, output:
+   <promise>BLOCKED: [brief reason why you're blocked]</promise>
+
+4. If you need a DECISION from the user before continuing, output:
+   <promise>DECIDE: [brief question for the user]</promise>
+
+Do not output promise tags until you've attempted to complete the tasks or determined you cannot proceed.
 ---`;
 }
 
+/**
+ * Prepare prompt for Claude - Canonical Ralph Pattern
+ *
+ * The canonical ralph keeps prompts STATIC. The only thing appended is the
+ * completion suffix that teaches Claude about promise tags.
+ *
+ * NO context injection (iteration number, PROJECT_ROOT, etc.) - this is intentional.
+ * Claude reads state from files (progress.txt, task files), not injected context.
+ *
+ * @param originalPrompt - The user's prompt (unchanged)
+ * @param completionSignal - The completion signal to use
+ * @returns The prompt with completion suffix appended
+ */
 export function preparePrompt(
   originalPrompt: string,
-  projectRoot: string,
-  completionSignal: string,
-  loopContext?: LoopContext
+  completionSignal: string
 ): string {
-  const iteration = loopContext?.currentIteration ?? '?';
-  const maxIterations = loopContext?.maxIterations ?? '?';
-  const iterationStatus = loopContext?.isFirstIteration
-    ? 'This is the FIRST iteration.'
-    : 'This is a CONTINUATION - previous iterations have run.';
-
-  const contextHeader = `=== RALPH AUTONOMOUS LOOP ===
-You are running inside RALPH, an autonomous AI coding loop.
-
-ITERATION: ${iteration} of ${maxIterations}
-${iterationStatus}
-PROJECT_ROOT=${projectRoot}
-
-INSTRUCTIONS:
-- You are running autonomously - the user sees your output in real-time via TUI
-- Provide clear progress updates as you work (e.g., "Now implementing X...", "Testing Y...")
-- Think step-by-step and be explicit about what you're doing
-- Summarize what was accomplished after completing subtasks
-- On subsequent iterations, build upon previous work
-=== END RALPH CONTEXT ===
-
-`;
-
-  return `${contextHeader}${originalPrompt}${createCompletionSuffix(completionSignal)}`;
+  // Canonical ralph: prompt is static, only completion suffix is appended
+  return `${originalPrompt}${createCompletionSuffix(completionSignal)}`;
 }
 
 export const promiseParser = {
   parsePromiseTag,
+  parseCommitMessage,
+  parseAllTags,
   containsCompletionSignal,
   findAllPromiseTags,
   requiresUserIntervention,

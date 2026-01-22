@@ -21,15 +21,27 @@ export function killActiveProcess(): boolean {
 }
 
 export function buildClaudeArgs(options: ClaudeProcessOptions): string[] {
-  const args = ['--model', options.model];
+  const args: string[] = [];
 
+  // Always use print mode for non-interactive operation
+  args.push('--print');
+
+  // Model selection
+  args.push('--model', options.model);
+
+  // Skip permissions when enabled
   if (options.dangerouslySkipPermissions) {
     args.push('--dangerously-skip-permissions');
   } else {
     args.push('--permission-mode', 'acceptEdits');
   }
 
-  args.push('-p', options.prompt, '--output-format', 'text');
+  // Output format
+  args.push('--output-format', 'text');
+
+  // The prompt itself (must be last)
+  args.push('-p', options.prompt);
+
   return args;
 }
 

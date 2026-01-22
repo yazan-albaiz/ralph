@@ -5,6 +5,7 @@
 // CLI Configuration
 export interface RalphConfig {
   maxIterations: number;
+  unlimited: boolean;
   completionSignal: string;
   model: string;
   dangerouslySkipPermissions: boolean;
@@ -16,11 +17,14 @@ export interface RalphConfig {
   isFile: boolean;
   projectRoot: string;
   sandbox: boolean;
+  headless: boolean;
+  autoCommit: boolean;
 }
 
 // Default configuration values
 export const DEFAULT_CONFIG: Omit<RalphConfig, 'prompt' | 'isFile' | 'projectRoot'> = {
   maxIterations: 200,
+  unlimited: false,
   completionSignal: '<promise>COMPLETE</promise>',
   model: 'opus',
   dangerouslySkipPermissions: false,
@@ -29,6 +33,8 @@ export const DEFAULT_CONFIG: Omit<RalphConfig, 'prompt' | 'isFile' | 'projectRoo
   enableNotifications: true,
   enableSound: true,
   sandbox: false,
+  headless: false,
+  autoCommit: true,
 };
 
 // Timing and Performance
