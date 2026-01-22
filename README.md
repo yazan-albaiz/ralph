@@ -1,15 +1,6 @@
 # Ralph CLI
 
-> Autonomous AI Coding Loop using Claude Code
-
-Named after Ralph Wiggum from The Simpsons - known for naive, relentless persistence.
-
-```
-           ╔═══════════════════════════╗
-           ║   (chuckles)              ║
-           ║      I'm in danger.       ║
-           ╚═══════════════════════════╝
-```
+![Ralph Wiggum saying: I'm in danger](https://i.kym-cdn.com/entries/icons/mobile/000/025/817/Screen_Shot_2018-03-30_at_11.34.27_AM.jpg)
 
 ## What is Ralph?
 
