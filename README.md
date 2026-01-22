@@ -58,10 +58,12 @@ ralph -m 50 "Implement feature X"
 | Option | Description | Default |
 |--------|-------------|---------|
 | `-m, --max <n>` | Maximum iterations | 200 |
+| `-u, --unlimited` | Run indefinitely until completion | false |
 | `-s, --signal <text>` | Completion signal | `<promise>COMPLETE</promise>` |
 | `-M, --model <model>` | Claude model (opus, sonnet, haiku) | opus |
 | `-d, --dangerously-skip` | Skip permission prompts | false |
 | `-v, --verbose` | Show full Claude output | false |
+| `--headless` | Run without TUI (for AFK/background) | false |
 | `--no-splash` | Skip splash screen | - |
 | `--no-notify` | Disable desktop notifications | - |
 | `--no-sound` | Disable sound alerts | - |
@@ -99,6 +101,94 @@ Output this when you can't continue without human help. Ralph will pause and not
 <promise>DECIDE: question here</promise>
 ```
 Output this when you need a user decision. Ralph will pause and wait.
+
+## The Canonical Ralph Workflow
+
+Ralph is most effective when used with the canonical pattern, which keeps AI operating in its smartest mode by wiping context completely after every iteration.
+
+### Why No Context Injection?
+
+Previous versions of Ralph injected iteration numbers and instructions into the prompt. This is **removed** because:
+
+1. **Context pollution**: Every token injected is a token not available for the actual task
+2. **LLMs get worse as context grows**: Old code, previous attempts, and failed approaches create noise
+3. **Unnecessary**: Claude can read iteration state from files (PRD, progress.txt)
+4. **Anti-pattern**: The canonical ralph keeps prompts **static**
+
+The TUI still shows iteration progress for YOUR visibility - it's just not sent to Claude.
+
+### How It Works
+
+1. **Static Prompt**: Your prompt file contains instructions AND task definitions
+2. **Fresh Context**: Each iteration starts with a completely clean context
+3. **Progress via Files**: Claude reads/writes project files (not injected context)
+4. **External Loop**: Ralph controls iteration, not Claude
+
+### Recommended Prompt Structure
+
+Your prompt file (e.g., `task.md`) should include:
+
+1. **Instructions** - Tell Claude how to work:
+   - Read the task list below
+   - Pick the highest priority incomplete task
+   - Implement it fully
+   - Mark it as complete
+   - Run tests/checks
+   - Commit if passing
+
+2. **Task List** - Concrete, verifiable tasks:
+   ```markdown
+   ## Tasks
+
+   ### US-001: Add user authentication [passes: false]
+   - Add POST /auth/login endpoint
+   - Add POST /auth/register endpoint
+   - Use bcrypt for password hashing
+   - Tests pass
+
+   ### US-002: Add password reset [passes: false]
+   - Add POST /auth/forgot-password endpoint
+   - Send reset email
+   - Tests pass
+   ```
+
+3. **Completion Signal**:
+   ```markdown
+   When ALL tasks show [passes: true], output:
+   <promise>COMPLETE</promise>
+   ```
+
+### progress.txt Convention
+
+Instruct Claude to append learnings to `progress.txt` after each iteration:
+
+```markdown
+After completing work, append a brief summary to progress.txt:
+- What was implemented
+- Any issues encountered
+- Patterns discovered for future iterations
+```
+
+This creates a log that:
+- Gives you visibility into what happened
+- Can be read by future iterations (Claude reads it fresh each time)
+- Doesn't bloat context (it's a file, not injected)
+
+### Example Runs
+
+```bash
+# Unlimited iterations until all tasks complete
+ralph ./my-feature.md --unlimited
+
+# With iteration limit (safety)
+ralph ./my-feature.md -m 50
+
+# Headless for AFK/overnight runs
+ralph ./my-feature.md --unlimited --headless
+
+# Combine with verbose output
+ralph ./my-feature.md -u --headless -v
+```
 
 ## Writing Good Prompts
 

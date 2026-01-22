@@ -38,7 +38,8 @@ src/
 │   └── useExitHandler.ts   # Safe exit with double Ctrl+C
 └── lib/                 # Utilities (non-React)
     ├── claude.ts        # Claude CLI process spawning
-    ├── promiseParser.ts # Promise tag parsing + loop context injection
+    ├── promiseParser.ts # Promise tag parsing (NO context injection - canonical ralph)
+    ├── headlessRunner.ts # TUI-free execution for AFK/background runs
     ├── history.ts       # Save runs to ~/.ralph/history/
     ├── notifications.ts # Desktop notifications + sound
     ├── preflight.ts     # Pre-flight validation checks
@@ -59,20 +60,19 @@ Claude signals its state using semantic XML tags:
 
 Parsed by `src/lib/promiseParser.ts`.
 
-### Loop Context Injection
+### Canonical Ralph Pattern (No Context Injection)
 
-Every prompt sent to Claude includes context about the autonomous loop:
+Ralph follows the canonical pattern where prompts are **STATIC**:
+- No iteration numbers injected
+- No PROJECT_ROOT injected
+- No growing context
+- Only the completion suffix is appended (to teach Claude about promise tags)
 
-```
-=== RALPH AUTONOMOUS LOOP ===
-ITERATION: 1 of 10
-This is the FIRST iteration.
-PROJECT_ROOT=/path/to/project
-...instructions...
-=== END RALPH CONTEXT ===
-```
+**Why?** LLMs get worse as context grows. By keeping prompts static and having Claude read/write state via files (progress.txt, task files), each iteration starts fresh with maximum cognitive capacity.
 
-Injected by `preparePrompt()` in `src/lib/promiseParser.ts`.
+The TUI displays iteration progress for the USER - but this info is NOT sent to Claude.
+
+See `preparePrompt()` in `src/lib/promiseParser.ts`.
 
 ### Application Phases
 
@@ -110,7 +110,8 @@ bun test --watch              # Watch mode
 |------|---------|
 | `src/hooks/useClaudeLoop.ts` | Core loop logic - start, pause, resume, stop |
 | `src/lib/claude.ts` | Spawns `claude` CLI process, captures stdout/stderr |
-| `src/lib/promiseParser.ts` | Parses completion tags, injects loop context |
+| `src/lib/promiseParser.ts` | Parses completion tags (NO context injection) |
+| `src/lib/headlessRunner.ts` | TUI-free execution mode |
 | `src/app.tsx` | Main UI, phase transitions, keyboard handling |
 | `src/types/index.ts` | All TypeScript interfaces |
 
@@ -166,6 +167,7 @@ Default config in `src/types/index.ts`:
 ```typescript
 export const DEFAULT_CONFIG = {
   maxIterations: 200,
+  unlimited: false,        // Run indefinitely until completion
   completionSignal: '<promise>COMPLETE</promise>',
   model: 'opus',
   dangerouslySkipPermissions: false,
@@ -174,8 +176,18 @@ export const DEFAULT_CONFIG = {
   enableNotifications: true,
   enableSound: true,
   sandbox: false,
+  headless: false,         // TUI-free mode for AFK/background runs
 };
 ```
+
+### Configuration Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `maxIterations` | 200 | Max iterations (ignored if unlimited) |
+| `unlimited` | false | Run until completion signal |
+| `headless` | false | No TUI, console output only |
+| `sandbox` | false | Run in Docker sandbox |
 
 ### Docker Sandbox Mode
 
@@ -237,6 +249,16 @@ Edit `src/hooks/useClaudeLoop.ts`:
 - `executeLoop()` - Main loop control flow
 - Promise tag handling in the completion checks
 
-### Changing Prompt Context
+### Headless Mode
+
+For AFK/background operation, use `--headless`:
+- No TUI, structured console output
+- Stops on BLOCKED/DECIDE (no way to resume interactively)
+- Exit codes: 0 (completed/cancelled), 1 (error)
+- Implementation in `src/lib/headlessRunner.ts`
+
+### Changing Prompt Handling
 
 Edit `preparePrompt()` in `src/lib/promiseParser.ts`.
+
+**Note:** The canonical ralph pattern means prompts are STATIC. Only the completion suffix is appended to teach Claude about promise tags. No iteration numbers, no PROJECT_ROOT, no growing context.

@@ -1,14 +1,13 @@
 /**
  * Promise Tag Parser - Parse semantic promise tags from Claude output
+ *
+ * Canonical Ralph Pattern:
+ * - Prompts are STATIC (no iteration/context injection)
+ * - Only the completion suffix is appended to teach Claude about promise tags
+ * - Progress is tracked via FILES (progress.txt), not injected context
  */
 
 import type { ParsedPromiseTag } from '../types/index.js';
-
-export interface LoopContext {
-  currentIteration: number;
-  maxIterations: number;
-  isFirstIteration: boolean;
-}
 
 const PROMISE_TAG_PATTERNS = {
   COMPLETE: /<promise>\s*COMPLETE\s*<\/promise>/i,
@@ -85,36 +84,25 @@ Do not output any promise tags until you've attempted to complete the tasks or d
 ---`;
 }
 
+/**
+ * Prepare prompt for Claude - Canonical Ralph Pattern
+ *
+ * The canonical ralph keeps prompts STATIC. The only thing appended is the
+ * completion suffix that teaches Claude about promise tags.
+ *
+ * NO context injection (iteration number, PROJECT_ROOT, etc.) - this is intentional.
+ * Claude reads state from files (progress.txt, task files), not injected context.
+ *
+ * @param originalPrompt - The user's prompt (unchanged)
+ * @param completionSignal - The completion signal to use
+ * @returns The prompt with completion suffix appended
+ */
 export function preparePrompt(
   originalPrompt: string,
-  projectRoot: string,
-  completionSignal: string,
-  loopContext?: LoopContext
+  completionSignal: string
 ): string {
-  const iteration = loopContext?.currentIteration ?? '?';
-  const maxIterations = loopContext?.maxIterations ?? '?';
-  const iterationStatus = loopContext?.isFirstIteration
-    ? 'This is the FIRST iteration.'
-    : 'This is a CONTINUATION - previous iterations have run.';
-
-  const contextHeader = `=== RALPH AUTONOMOUS LOOP ===
-You are running inside RALPH, an autonomous AI coding loop.
-
-ITERATION: ${iteration} of ${maxIterations}
-${iterationStatus}
-PROJECT_ROOT=${projectRoot}
-
-INSTRUCTIONS:
-- You are running autonomously - the user sees your output in real-time via TUI
-- Provide clear progress updates as you work (e.g., "Now implementing X...", "Testing Y...")
-- Think step-by-step and be explicit about what you're doing
-- Summarize what was accomplished after completing subtasks
-- On subsequent iterations, build upon previous work
-=== END RALPH CONTEXT ===
-
-`;
-
-  return `${contextHeader}${originalPrompt}${createCompletionSuffix(completionSignal)}`;
+  // Canonical ralph: prompt is static, only completion suffix is appended
+  return `${originalPrompt}${createCompletionSuffix(completionSignal)}`;
 }
 
 export const promiseParser = {

@@ -166,15 +166,17 @@ describe('Integration Tests', () => {
   });
 
   describe('Prompt Preparation', () => {
-    test('prepares prompt with PROJECT_ROOT and completion instructions', () => {
+    test('prepares prompt with completion instructions (canonical pattern - no context injection)', () => {
       const prompt = 'Build a REST API';
-      const projectRoot = '/home/user/myproject';
       const signal = '<promise>COMPLETE</promise>';
 
-      const prepared = preparePrompt(prompt, projectRoot, signal);
+      const prepared = preparePrompt(prompt, signal);
 
-      expect(prepared).toContain('PROJECT_ROOT=/home/user/myproject');
+      // Canonical pattern: NO PROJECT_ROOT injection
+      expect(prepared).not.toContain('PROJECT_ROOT=');
+      // Original prompt is preserved
       expect(prepared).toContain('Build a REST API');
+      // Completion suffix is appended
       expect(prepared).toContain(signal);
       expect(prepared).toContain('BLOCKED');
       expect(prepared).toContain('DECIDE');

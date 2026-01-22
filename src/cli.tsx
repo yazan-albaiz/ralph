@@ -20,6 +20,7 @@ import { logger, setDebugEnabled } from './lib/logger.js';
 import { setNotificationsEnabled, setSoundEnabled } from './lib/notifications.js';
 import { runDockerPreflightChecks } from './lib/docker.js';
 import { promptSandboxFallback } from './lib/prompt.js';
+import { runHeadless } from './lib/headlessRunner.js';
 import { version as VERSION } from '../package.json';
 
 // CLI program
@@ -31,10 +32,12 @@ program
   .version(VERSION)
   .argument('[prompt]', 'Prompt string or path to prompt file')
   .option('-m, --max <n>', 'Maximum iterations', (val) => parseInt(val, 10), DEFAULT_CONFIG.maxIterations)
+  .option('-u, --unlimited', 'Run indefinitely until completion (conflicts with -m)')
   .option('-s, --signal <text>', 'Completion signal', DEFAULT_CONFIG.completionSignal)
   .option('-M, --model <model>', 'Claude model (opus, sonnet, haiku)', DEFAULT_CONFIG.model)
   .option('-d, --dangerously-skip', 'Skip permission prompts', DEFAULT_CONFIG.dangerouslySkipPermissions)
   .option('-v, --verbose', 'Show full Claude output', DEFAULT_CONFIG.verbose)
+  .option('--headless', 'Run without TUI (for background/AFK operation)')
   .option('--no-splash', 'Skip splash screen')
   .option('--no-notify', 'Disable desktop notifications')
   .option('--no-sound', 'Disable sound alerts')
@@ -43,6 +46,12 @@ program
   .option('--sandbox', 'Run Claude in Docker sandbox for isolation')
   .option('--no-sandbox', 'Disable Docker sandbox (default)')
   .action(async (promptArg: string | undefined, options) => {
+    // Validate conflicting options
+    if (options.unlimited && options.max !== DEFAULT_CONFIG.maxIterations) {
+      console.error('Error: --unlimited and --max cannot be used together');
+      process.exit(1);
+    }
+
     // Enable debug if requested
     if (options.debug) {
       setDebugEnabled(true);
@@ -77,6 +86,7 @@ program
     // Build config
     const config: RalphConfig = {
       maxIterations: options.max,
+      unlimited: options.unlimited || false,
       completionSignal: options.signal,
       model: options.model,
       dangerouslySkipPermissions: options.dangerouslySkip || false,
@@ -88,6 +98,7 @@ program
       isFile,
       projectRoot: process.cwd(),
       sandbox: options.sandbox || false,
+      headless: options.headless || false,
     };
 
     // Run Docker sandbox preflight checks if sandbox mode is enabled
@@ -133,14 +144,20 @@ program
       process.exit(1);
     }
 
-    // Render the app
-    const { waitUntilExit } = render(<App config={config} />);
+    // Run in headless mode or with TUI
+    if (config.headless) {
+      logger.info('Running in headless mode');
+      await runHeadless({ config });
+    } else {
+      // Render the TUI app
+      const { waitUntilExit } = render(<App config={config} />);
 
-    try {
-      await waitUntilExit();
-    } catch (err) {
-      logger.error(`Application error: ${err}`);
-      process.exit(1);
+      try {
+        await waitUntilExit();
+      } catch (err) {
+        logger.error(`Application error: ${err}`);
+        process.exit(1);
+      }
     }
   });
 
