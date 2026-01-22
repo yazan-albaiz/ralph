@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text, useInput, useApp } from 'ink';
 import type { RalphConfig, LoopStatus, TimingStats as TimingStatsType } from './types/index.js';
 import { Splash } from './components/Splash.js';
 import { Header } from './components/Header.js';
@@ -11,8 +11,9 @@ import { IterationPanel } from './components/IterationPanel.js';
 import { OutputPreview } from './components/OutputPreview.js';
 import { TimingStats } from './components/TimingStats.js';
 import { NotificationBox, WarningMessage } from './components/Logger.js';
+import { Spinner } from './components/Spinner.js';
 import { useClaudeLoop } from './hooks/useClaudeLoop.js';
-import { useTiming, createInitialTimingStats } from './hooks/useTiming.js';
+import { useTiming } from './hooks/useTiming.js';
 import { useOutputCapture } from './hooks/useOutputCapture.js';
 import { useExitHandler, getExitWarningMessage } from './hooks/useExitHandler.js';
 import { logger, setSilentMode } from './lib/logger.js';
@@ -21,11 +22,12 @@ interface AppProps {
   config: RalphConfig;
 }
 
-type AppPhase = 'splash' | 'preflight' | 'running' | 'paused' | 'complete' | 'error';
+type AppPhase = 'splash' | 'starting' | 'running' | 'paused' | 'complete' | 'error';
 
 export function App({ config }: AppProps) {
-  const [phase, setPhase] = useState<AppPhase>(config.showSplash ? 'splash' : 'running');
+  const [phase, setPhase] = useState<AppPhase>(config.showSplash ? 'splash' : 'starting');
   const [iterationDuration, setIterationDuration] = useState(0);
+  const { exit } = useApp();
 
   // Silence console logs when using TUI
   useEffect(() => {
@@ -36,10 +38,10 @@ export function App({ config }: AppProps) {
   }, [config.verbose]);
 
   // Timing hook
-  const { stats, startIteration, endIteration, reset: resetTiming } = useTiming();
+  const { stats, startIteration, endIteration } = useTiming();
 
   // Output capture hook
-  const { output, addOutput, clearOutput } = useOutputCapture({ maxLines: 50 });
+  const { output, addOutput } = useOutputCapture({ maxLines: 50 });
 
   // Exit handler hook
   const { exitRequested, forceExit } = useExitHandler({
@@ -63,12 +65,15 @@ export function App({ config }: AppProps) {
     },
     onOutput: addOutput,
     onStatusChange: (status) => {
+      logger.debug(`Status changed to: ${status}`);
       if (status === 'completed' || status === 'max_reached' || status === 'cancelled') {
         setPhase('complete');
       } else if (status === 'blocked' || status === 'decide') {
         setPhase('paused');
       } else if (status === 'error') {
         setPhase('error');
+      } else if (status === 'running') {
+        setPhase('running');
       }
     },
     onComplete: (entry) => {
@@ -76,16 +81,19 @@ export function App({ config }: AppProps) {
     },
   });
 
-  // Handle splash completion
+  // Handle splash completion - transition to starting phase
   const handleSplashComplete = useCallback(() => {
-    setPhase('running');
-    loop.start();
-  }, [loop]);
+    setPhase('starting');
+  }, []);
 
-  // Start loop after splash
+  // Start loop when entering starting phase
   useEffect(() => {
-    if (phase === 'running' && loop.state.status === 'idle') {
-      loop.start();
+    if (phase === 'starting') {
+      // Small delay to ensure UI renders first
+      const timer = setTimeout(() => {
+        loop.start();
+      }, 100);
+      return () => clearTimeout(timer);
     }
   }, [phase, loop]);
 
@@ -94,7 +102,7 @@ export function App({ config }: AppProps) {
     // 'q' to quit
     if (input === 'q') {
       loop.stop();
-      forceExit();
+      exit();
     }
 
     // 'p' to pause/resume
@@ -126,8 +134,43 @@ export function App({ config }: AppProps) {
     return <Splash duration={2000} onComplete={handleSplashComplete} />;
   }
 
+  // Render starting screen
+  if (phase === 'starting' && loop.state.status === 'idle') {
+    return (
+      <Box flexDirection="column" padding={1}>
+        <Box
+          flexDirection="column"
+          borderStyle="round"
+          borderColor="cyan"
+          paddingX={2}
+          paddingY={1}
+        >
+          <Box>
+            <Text color="yellow" bold>
+              RALPH
+            </Text>
+            <Text color="gray"> - Autonomous AI Coding Loop</Text>
+          </Box>
+          <Box marginTop={1}>
+            <Spinner label="Initializing Claude..." />
+          </Box>
+          <Box marginTop={1}>
+            <Text color="gray">Model: </Text>
+            <Text color="cyan">{config.model}</Text>
+            <Text color="gray"> | Max iterations: </Text>
+            <Text color="yellow">{config.maxIterations}</Text>
+          </Box>
+        </Box>
+      </Box>
+    );
+  }
+
   // Build timing stats object
   const timingStats: TimingStatsType = stats;
+
+  // Determine current display status
+  const displayStatus = loop.state.status;
+  const isComplete = phase === 'complete';
 
   return (
     <Box flexDirection="column" padding={1}>
@@ -141,7 +184,7 @@ export function App({ config }: AppProps) {
       {/* Header */}
       <Header
         config={config}
-        status={loop.state.status}
+        status={displayStatus}
         iteration={loop.state.currentIteration}
         totalElapsed={stats.totalElapsed}
       />
@@ -153,7 +196,7 @@ export function App({ config }: AppProps) {
           <IterationPanel
             iteration={loop.state.currentIteration}
             maxIterations={config.maxIterations}
-            status={loop.state.status}
+            status={displayStatus}
             duration={iterationDuration}
             promiseTag={loop.state.lastPromiseTag}
           />
@@ -173,11 +216,11 @@ export function App({ config }: AppProps) {
       </Box>
 
       {/* Blocked/Decide notification */}
-      {(loop.state.status === 'blocked' || loop.state.status === 'decide') && (
+      {(displayStatus === 'blocked' || displayStatus === 'decide') && (
         <Box marginTop={1}>
           <NotificationBox
-            type={loop.state.status === 'blocked' ? 'blocked' : 'decide'}
-            title={loop.state.status === 'blocked' ? 'Loop Blocked' : 'Decision Needed'}
+            type={displayStatus === 'blocked' ? 'blocked' : 'decide'}
+            title={displayStatus === 'blocked' ? 'Loop Blocked' : 'Decision Needed'}
             message={loop.state.lastPromiseTag?.content || 'Human intervention required'}
             instructions="Press 'r' to resume, 'q' to quit"
           />
@@ -185,21 +228,23 @@ export function App({ config }: AppProps) {
       )}
 
       {/* Completion notification */}
-      {phase === 'complete' && (
+      {isComplete && (
         <Box marginTop={1}>
           <NotificationBox
             type="complete"
             title={
-              loop.state.status === 'completed'
-                ? 'Task Complete!'
-                : loop.state.status === 'max_reached'
-                  ? 'Max Iterations Reached'
-                  : 'Loop Stopped'
+              displayStatus === 'completed'
+                ? '✓ Task Complete!'
+                : displayStatus === 'max_reached'
+                  ? '! Max Iterations Reached'
+                  : '✕ Loop Stopped'
             }
             message={
-              loop.state.status === 'completed'
-                ? `Completed in ${loop.state.currentIteration} iteration(s)`
-                : `Stopped at iteration ${loop.state.currentIteration}`
+              displayStatus === 'completed'
+                ? `Successfully completed in ${loop.state.currentIteration} iteration(s)`
+                : displayStatus === 'max_reached'
+                  ? `Reached maximum of ${config.maxIterations} iterations without completion signal`
+                  : `Stopped at iteration ${loop.state.currentIteration}`
             }
             instructions="Press 'q' to exit"
           />
