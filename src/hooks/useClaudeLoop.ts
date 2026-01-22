@@ -105,6 +105,7 @@ export function useClaudeLoop(options: UseClaudeLoopOptions): UseClaudeLoopRetur
         dangerouslySkipPermissions: config.dangerouslySkipPermissions,
         projectRoot: config.projectRoot,
         onOutput: (chunk) => {
+          logger.debug(`[STREAM] Received chunk: ${chunk.length} chars`);
           setState((prev) => ({
             ...prev,
             output: [...prev.output, chunk],
@@ -115,6 +116,23 @@ export function useClaudeLoop(options: UseClaudeLoopOptions): UseClaudeLoopRetur
           logger.error(`Iteration ${iteration} error: ${error}`);
         },
       });
+
+      // Fallback: If streaming didn't capture output but result has it, update state
+      // This handles Claude CLI's -p mode which may buffer all output until completion
+      if (result.output && result.output.length > 0) {
+        logger.debug(`[RESULT] Final output: ${result.output.length} chars`);
+        setState((prev) => {
+          // Only update if we didn't capture anything during streaming
+          if (prev.output.length === 0) {
+            logger.debug('[FALLBACK] Using result output since streaming captured nothing');
+            return {
+              ...prev,
+              output: [result.output],
+            };
+          }
+          return prev;
+        });
+      }
 
       onIterationEnd?.(iteration, result);
 

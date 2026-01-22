@@ -42,8 +42,9 @@ export function buildClaudeArgs(options: ClaudeProcessOptions): string[] {
     args.push('--permission-mode', 'acceptEdits');
   }
 
-  // Print mode (non-interactive)
+  // Print mode (non-interactive) with text output format
   args.push('-p', options.prompt);
+  args.push('--output-format', 'text');
 
   return args;
 }
