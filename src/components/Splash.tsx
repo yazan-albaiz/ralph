@@ -1,35 +1,10 @@
 /**
- * Splash Screen Component - Ralph Wiggum ASCII Art
+ * Splash Screen Component
+ * TODO: Add proper Ralph Wiggum ASCII art in the future
  */
 
 import React, { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
-
-// ASCII art of Ralph Wiggum "I'm in danger" scene
-// Style matching ralph_example.png with dense block characters
-const RALPH_ASCII = `
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-▓▓██████████████████▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓██████████████▓▓▓
-▓▓██░░░░░░░░░░░░░░██▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓██░░░░░░░░░░██▓▓▓
-▓▓██░░░░░░░░░░░░░░██▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓██░░░░░░░░░░██▓▓▓
-▓▓██████████████████▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓██████████████▓▓▓
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒░░░░░░░░░░░░░░▒▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒░░▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒░░▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒░▒▒▒▒░░░░▒▒▒▒░░░░▒▒▒▒▒░░▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒░▒▒▒░██▓▓░▒▒▒░██▓▓░▒▒▒▒▒░▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒░▒▒▒░████░▒▒▒░████░▒▒▒▒▒░▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒░▒▒▒▒░░░░▒▒▒▒▒░░░░▒▒▒▒▒▒░▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒░▒▒░░░░░░░▒▒░░░░░░░▒▒▒▒▒░▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒░▒▒▒▒░░░░░░░░░░▒▒▒▒▒▒░▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒░▒▒▒▒▒▒████▒▒▒▒▒▒▒░▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒░░▒▒▒▒▒▒▒▒▒▒▒░░▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-▓▓░░░░░░░░░░░░▓▓▓▓▓▓▒░░░░░░░░░░▒▓▓▓▓▓▓░░░░░░░░░░░░▓▓▓▓▓▓▓▓▓▓
-▓▓░░░░░░░░░░░░▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▓░░░░░░░░░░░░▓▓▓▓▓▓▓▓▓▓
-▓▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░▓▓▓▓▓▓▓▓▓▓
-▓▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░▓▓▓▓▓▓▓▓▓▓
-`;
 
 const RALPH_TITLE = `
 ██████╗  █████╗ ██╗     ██████╗ ██╗  ██╗
@@ -66,34 +41,16 @@ export function Splash({ version = '1.0.0', duration = 2000, onComplete }: Splas
 
   return (
     <Box flexDirection="column" alignItems="center" paddingY={1}>
-      {/* ASCII Art */}
-      <Box>
-        <Text color="yellow">{RALPH_ASCII}</Text>
-      </Box>
-
-      {/* Quote Box */}
-      <Box flexDirection="column" alignItems="center" marginY={1}>
-        <Text color="cyan">╔═════════════════════════════════╗</Text>
-        <Text color="cyan">║                                 ║</Text>
-        <Text>
-          <Text color="cyan">║</Text>
-          <Text color="white">       (chuckles)               </Text>
-          <Text color="cyan">║</Text>
-        </Text>
-        <Text>
-          <Text color="cyan">║</Text>
-          <Text color="yellowBright" bold>
-            {'       I\'m in danger.           '}
-          </Text>
-          <Text color="cyan">║</Text>
-        </Text>
-        <Text color="cyan">║                                 ║</Text>
-        <Text color="cyan">╚═════════════════════════════════╝</Text>
-      </Box>
-
       {/* Title */}
+      <Box>
+        <Text color="yellow">{RALPH_TITLE}</Text>
+      </Box>
+
+      {/* Tagline */}
       <Box marginTop={1}>
-        <Text color="green">{RALPH_TITLE}</Text>
+        <Text color="gray" dimColor>
+          "(chuckles) I'm in danger."
+        </Text>
       </Box>
 
       {/* Version and Loading */}

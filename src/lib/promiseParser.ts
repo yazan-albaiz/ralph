@@ -4,6 +4,15 @@
 
 import type { ParsedPromiseTag, PromiseTagType } from '../types/index.js';
 
+/**
+ * Loop context for Claude to understand its autonomous execution environment
+ */
+export interface LoopContext {
+  currentIteration: number;
+  maxIterations: number;
+  isFirstIteration: boolean;
+}
+
 // Regex patterns for promise tags
 const PROMISE_TAG_PATTERNS = {
   // Standard completion: <promise>COMPLETE</promise>
@@ -135,19 +144,33 @@ Do not output any promise tags until you've attempted to complete the tasks or d
 }
 
 /**
- * Inject PROJECT_ROOT and completion instructions into a prompt
+ * Inject PROJECT_ROOT, loop context, and completion instructions into a prompt
  */
 export function preparePrompt(
   originalPrompt: string,
   projectRoot: string,
-  completionSignal: string
+  completionSignal: string,
+  loopContext?: LoopContext
 ): string {
-  const projectRootLine = `PROJECT_ROOT=${projectRoot}`;
+  const contextHeader = `=== RALPH AUTONOMOUS LOOP ===
+You are running inside RALPH, an autonomous AI coding loop.
+
+ITERATION: ${loopContext?.currentIteration ?? '?'} of ${loopContext?.maxIterations ?? '?'}
+${loopContext?.isFirstIteration ? 'This is the FIRST iteration.' : 'This is a CONTINUATION - previous iterations have run.'}
+PROJECT_ROOT=${projectRoot}
+
+INSTRUCTIONS:
+- You are running autonomously - the user sees your output in real-time via TUI
+- Provide clear progress updates as you work (e.g., "Now implementing X...", "Testing Y...")
+- Think step-by-step and be explicit about what you're doing
+- Summarize what was accomplished after completing subtasks
+- On subsequent iterations, build upon previous work
+=== END RALPH CONTEXT ===
+
+`;
+
   const suffix = createCompletionSuffix(completionSignal);
-
-  return `${projectRootLine}
-
-${originalPrompt}${suffix}`;
+  return `${contextHeader}${originalPrompt}${suffix}`;
 }
 
 export const promiseParser = {

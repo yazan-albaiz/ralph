@@ -86,8 +86,17 @@ export function useClaudeLoop(options: UseClaudeLoopOptions): UseClaudeLoopRetur
 
       onIterationStart?.(iteration);
 
-      // Prepare the prompt with PROJECT_ROOT and completion instructions
-      const preparedPrompt = preparePrompt(prompt, config.projectRoot, config.completionSignal);
+      // Prepare the prompt with PROJECT_ROOT, loop context, and completion instructions
+      const preparedPrompt = preparePrompt(
+        prompt,
+        config.projectRoot,
+        config.completionSignal,
+        {
+          currentIteration: iteration,
+          maxIterations: config.maxIterations,
+          isFirstIteration: iteration === 1,
+        }
+      );
 
       // Run Claude
       const result = await runClaude({

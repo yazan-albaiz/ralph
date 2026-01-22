@@ -14,7 +14,6 @@ import { NotificationBox, WarningMessage } from './components/Logger.js';
 import { Spinner } from './components/Spinner.js';
 import { useClaudeLoop } from './hooks/useClaudeLoop.js';
 import { useTiming } from './hooks/useTiming.js';
-import { useOutputCapture } from './hooks/useOutputCapture.js';
 import { useExitHandler, getExitWarningMessage } from './hooks/useExitHandler.js';
 import { logger, setSilentMode } from './lib/logger.js';
 
@@ -40,8 +39,7 @@ export function App({ config }: AppProps) {
   // Timing hook
   const { stats, startIteration, endIteration } = useTiming();
 
-  // Output capture hook
-  const { output, addOutput } = useOutputCapture({ maxLines: 50 });
+  // Note: Output is now captured internally by useClaudeLoop (loop.state.output)
 
   // Exit handler hook
   const { exitRequested, forceExit } = useExitHandler({
@@ -63,7 +61,6 @@ export function App({ config }: AppProps) {
       setIterationDuration(result.duration);
       logger.info(`Iteration ${iteration} completed in ${result.duration}ms`);
     },
-    onOutput: addOutput,
     onStatusChange: (status) => {
       logger.debug(`Status changed to: ${status}`);
       if (status === 'completed' || status === 'max_reached' || status === 'cancelled') {
@@ -208,7 +205,7 @@ export function App({ config }: AppProps) {
         {/* Right column - Output preview */}
         <Box flexDirection="column" flexGrow={1} marginLeft={1}>
           <OutputPreview
-            output={output}
+            output={loop.state.output}
             maxLines={config.verbose ? 50 : 20}
             title="Claude Output"
           />

@@ -78,6 +78,7 @@ export async function runClaude(options: ClaudeProcessOptions): Promise<ClaudePr
     proc.stdout.on('data', (chunk: Buffer) => {
       const text = chunk.toString();
       stdout += text;
+      logger.debug(`[OUTPUT] Received ${text.length} chars`);
       options.onOutput?.(text);
     });
 
