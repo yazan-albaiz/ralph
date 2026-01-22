@@ -63,6 +63,10 @@ async function checkClaudeCli(): Promise<PreflightCheck> {
 
 /**
  * Check prompt file exists (if file path provided)
+ *
+ * Note: By the time preflight runs, the file has already been loaded
+ * in cli.tsx. If isFile is true, the file was successfully read.
+ * This check now just confirms the prompt content exists.
  */
 async function checkPromptFile(config: RalphConfig): Promise<PreflightCheck> {
   if (!config.isFile) {
@@ -74,16 +78,18 @@ async function checkPromptFile(config: RalphConfig): Promise<PreflightCheck> {
     };
   }
 
-  const exists = existsSync(config.prompt);
-  const readable = exists && (await isFileReadable(config.prompt));
+  // If isFile is true, the file was already successfully loaded in cli.tsx
+  // config.prompt now contains the file content, not the file path
+  // We just verify that content was actually loaded
+  const hasContent = Boolean(config.prompt && config.prompt.length > 0);
 
   return {
     name: 'Prompt File',
-    passed: readable,
-    message: readable
-      ? `Prompt file exists: ${config.prompt}`
-      : `Prompt file not found or not readable: ${config.prompt}`,
-    fatal: true,
+    passed: hasContent,
+    message: hasContent
+      ? 'Prompt loaded from file successfully'
+      : 'Prompt file was empty or failed to load',
+    fatal: !hasContent,
   };
 }
 
