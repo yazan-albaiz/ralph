@@ -23,6 +23,54 @@ interface AppProps {
 
 type AppPhase = 'splash' | 'starting' | 'running' | 'paused' | 'complete' | 'error';
 
+function getCompletionTitle(status: LoopStatus): string {
+  switch (status) {
+    case 'completed':
+      return '✓ Task Complete!';
+    case 'max_reached':
+      return '! Max Iterations Reached';
+    default:
+      return '✕ Loop Stopped';
+  }
+}
+
+function getCompletionMessage(status: LoopStatus, currentIteration: number, maxIterations: number): string {
+  switch (status) {
+    case 'completed':
+      return `Successfully completed in ${currentIteration} iteration(s)`;
+    case 'max_reached':
+      return `Reached maximum of ${maxIterations} iterations without completion signal`;
+    default:
+      return `Stopped at iteration ${currentIteration}`;
+  }
+}
+
+function getInterventionProps(status: LoopStatus): { type: 'blocked' | 'decide'; title: string } {
+  const isBlocked = status === 'blocked';
+  return {
+    type: isBlocked ? 'blocked' : 'decide',
+    title: isBlocked ? 'Loop Blocked' : 'Decision Needed',
+  };
+}
+
+function mapStatusToPhase(status: LoopStatus): AppPhase | null {
+  switch (status) {
+    case 'completed':
+    case 'max_reached':
+    case 'cancelled':
+      return 'complete';
+    case 'blocked':
+    case 'decide':
+      return 'paused';
+    case 'error':
+      return 'error';
+    case 'running':
+      return 'running';
+    default:
+      return null;
+  }
+}
+
 export function App({ config }: AppProps) {
   const [phase, setPhase] = useState<AppPhase>(config.showSplash ? 'splash' : 'starting');
   const [iterationDuration, setIterationDuration] = useState(0);
@@ -63,14 +111,9 @@ export function App({ config }: AppProps) {
     },
     onStatusChange: (status) => {
       logger.debug(`Status changed to: ${status}`);
-      if (status === 'completed' || status === 'max_reached' || status === 'cancelled') {
-        setPhase('complete');
-      } else if (status === 'blocked' || status === 'decide') {
-        setPhase('paused');
-      } else if (status === 'error') {
-        setPhase('error');
-      } else if (status === 'running') {
-        setPhase('running');
+      const newPhase = mapStatusToPhase(status);
+      if (newPhase) {
+        setPhase(newPhase);
       }
     },
     onComplete: (entry) => {
@@ -216,8 +259,7 @@ export function App({ config }: AppProps) {
       {(displayStatus === 'blocked' || displayStatus === 'decide') && (
         <Box marginTop={1}>
           <NotificationBox
-            type={displayStatus === 'blocked' ? 'blocked' : 'decide'}
-            title={displayStatus === 'blocked' ? 'Loop Blocked' : 'Decision Needed'}
+            {...getInterventionProps(displayStatus)}
             message={loop.state.lastPromiseTag?.content || 'Human intervention required'}
             instructions="Press 'r' to resume, 'q' to quit"
           />
@@ -229,20 +271,8 @@ export function App({ config }: AppProps) {
         <Box marginTop={1}>
           <NotificationBox
             type="complete"
-            title={
-              displayStatus === 'completed'
-                ? '✓ Task Complete!'
-                : displayStatus === 'max_reached'
-                  ? '! Max Iterations Reached'
-                  : '✕ Loop Stopped'
-            }
-            message={
-              displayStatus === 'completed'
-                ? `Successfully completed in ${loop.state.currentIteration} iteration(s)`
-                : displayStatus === 'max_reached'
-                  ? `Reached maximum of ${config.maxIterations} iterations without completion signal`
-                  : `Stopped at iteration ${loop.state.currentIteration}`
-            }
+            title={getCompletionTitle(displayStatus)}
+            message={getCompletionMessage(displayStatus, loop.state.currentIteration, config.maxIterations)}
             instructions="Press 'q' to exit"
           />
         </Box>

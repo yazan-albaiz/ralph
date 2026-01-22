@@ -1,19 +1,20 @@
 /**
  * Splash Screen Component
- * TODO: Add proper Ralph Wiggum ASCII art in the future
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
 
-const RALPH_TITLE = `
-██████╗  █████╗ ██╗     ██████╗ ██╗  ██╗
-██╔══██╗██╔══██╗██║     ██╔══██╗██║  ██║
-██████╔╝███████║██║     ██████╔╝███████║
-██╔══██╗██╔══██║██║     ██╔═══╝ ██╔══██║
-██║  ██║██║  ██║███████╗██║     ██║  ██║
-╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝  ╚═╝
-`;
+const RALPH_TITLE_LINES = [
+  '██████╗  █████╗ ██╗     ██████╗ ██╗  ██╗',
+  '██╔══██╗██╔══██╗██║     ██╔══██╗██║  ██║',
+  '██████╔╝███████║██║     ██████╔╝███████║',
+  '██╔══██╗██╔══██║██║     ██╔═══╝ ██╔══██║',
+  '██║  ██║██║  ██║███████╗██║     ██║  ██║',
+  '╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝  ╚═╝',
+];
+
+const TAGLINE = '"(chuckles) I\'m in danger."';
 
 interface SplashProps {
   version?: string;
@@ -21,18 +22,16 @@ interface SplashProps {
   onComplete?: () => void;
 }
 
-export function Splash({ version = '1.0.0', duration = 2000, onComplete }: SplashProps) {
+export function Splash({ version = '1.0.0', duration = 2000, onComplete }: SplashProps): React.ReactNode {
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
-    const completeTimer = setTimeout(() => {
+    const timer = setTimeout(() => {
       setVisible(false);
       onComplete?.();
     }, duration);
 
-    return () => {
-      clearTimeout(completeTimer);
-    };
+    return () => clearTimeout(timer);
   }, [duration, onComplete]);
 
   if (!visible) {
@@ -41,19 +40,20 @@ export function Splash({ version = '1.0.0', duration = 2000, onComplete }: Splas
 
   return (
     <Box flexDirection="column" alignItems="center" paddingY={1}>
-      {/* Title */}
-      <Box>
-        <Text color="yellow">{RALPH_TITLE}</Text>
+      <Box flexDirection="column" alignItems="center">
+        {RALPH_TITLE_LINES.map((line, index) => (
+          <Text key={index} color="yellow" bold>
+            {line}
+          </Text>
+        ))}
       </Box>
 
-      {/* Tagline */}
       <Box marginTop={1}>
         <Text color="gray" dimColor>
-          "(chuckles) I'm in danger."
+          {TAGLINE}
         </Text>
       </Box>
 
-      {/* Version and Loading */}
       <Box marginTop={1} flexDirection="column" alignItems="center">
         <Text color="gray">Autonomous AI Coding Loop v{version}</Text>
         <Text color="cyan">Starting...</Text>
@@ -62,32 +62,16 @@ export function Splash({ version = '1.0.0', duration = 2000, onComplete }: Splas
   );
 }
 
-/**
- * Mini splash for quick display
- */
-export function MiniSplash() {
+export function MiniSplash(): React.ReactNode {
   return (
     <Box flexDirection="column" alignItems="center">
-      <Text color="yellow" bold>
-        {'██████╗  █████╗ ██╗     ██████╗ ██╗  ██╗'}
-      </Text>
-      <Text color="yellow" bold>
-        {'██╔══██╗██╔══██╗██║     ██╔══██╗██║  ██║'}
-      </Text>
-      <Text color="yellow" bold>
-        {'██████╔╝███████║██║     ██████╔╝███████║'}
-      </Text>
-      <Text color="yellow" bold>
-        {'██╔══██╗██╔══██║██║     ██╔═══╝ ██╔══██║'}
-      </Text>
-      <Text color="yellow" bold>
-        {'██║  ██║██║  ██║███████╗██║     ██║  ██║'}
-      </Text>
-      <Text color="yellow" bold>
-        {'╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝  ╚═╝'}
-      </Text>
+      {RALPH_TITLE_LINES.map((line, index) => (
+        <Text key={index} color="yellow" bold>
+          {line}
+        </Text>
+      ))}
       <Text color="gray" dimColor>
-        {'"(chuckles) I\'m in danger."'}
+        {TAGLINE}
       </Text>
     </Box>
   );

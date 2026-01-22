@@ -3,20 +3,14 @@
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
-import type {
-  ClaudeProcessOptions,
-  ClaudeProcessResult,
-  ParsedPromiseTag,
-} from '../types/index.js';
+import type { ClaudeProcessOptions, ClaudeProcessResult } from '../types/index.js';
 import { parsePromiseTag } from './promiseParser.js';
 import { logger } from './logger.js';
 
-// Active process reference for cleanup
 let activeProcess: ChildProcess | null = null;
 
-/**
- * Kill the active Claude process if running
- */
+const EMPTY_PROMISE_TAG: ReturnType<typeof parsePromiseTag> = { type: null, content: null, raw: null };
+
 export function killActiveProcess(): boolean {
   if (activeProcess && !activeProcess.killed) {
     activeProcess.kill('SIGTERM');
@@ -26,32 +20,19 @@ export function killActiveProcess(): boolean {
   return false;
 }
 
-/**
- * Build Claude CLI arguments from options
- */
 export function buildClaudeArgs(options: ClaudeProcessOptions): string[] {
-  const args: string[] = [];
+  const args = ['--model', options.model];
 
-  // Model
-  args.push('--model', options.model);
-
-  // Permission mode
   if (options.dangerouslySkipPermissions) {
     args.push('--dangerously-skip-permissions');
   } else {
     args.push('--permission-mode', 'acceptEdits');
   }
 
-  // Print mode (non-interactive) with text output format
-  args.push('-p', options.prompt);
-  args.push('--output-format', 'text');
-
+  args.push('-p', options.prompt, '--output-format', 'text');
   return args;
 }
 
-/**
- * Run Claude CLI with streaming output
- */
 export async function runClaude(options: ClaudeProcessOptions): Promise<ClaudeProcessResult> {
   const startTime = Date.now();
   const args = buildClaudeArgs(options);
@@ -65,17 +46,12 @@ export async function runClaude(options: ClaudeProcessOptions): Promise<ClaudePr
 
     const proc = spawn('claude', args, {
       cwd: options.projectRoot,
-      env: {
-        ...process.env,
-        // Ensure we're not in interactive mode
-        TERM: 'dumb',
-      },
+      env: { ...process.env, TERM: 'dumb' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
     activeProcess = proc;
 
-    // Handle stdout
     proc.stdout.on('data', (chunk: Buffer) => {
       const text = chunk.toString();
       stdout += text;
@@ -83,19 +59,15 @@ export async function runClaude(options: ClaudeProcessOptions): Promise<ClaudePr
       options.onOutput?.(text);
     });
 
-    // Handle stderr
     proc.stderr.on('data', (chunk: Buffer) => {
       const text = chunk.toString();
       stderr += text;
       options.onError?.(text);
     });
 
-    // Handle process exit
     proc.on('close', (code) => {
       activeProcess = null;
       const duration = Date.now() - startTime;
-
-      // Parse promise tag from output
       const promiseTag = parsePromiseTag(stdout);
 
       if (code !== 0 && !promiseTag.type) {
@@ -112,19 +84,16 @@ export async function runClaude(options: ClaudeProcessOptions): Promise<ClaudePr
       });
     });
 
-    // Handle process errors
     proc.on('error', (err) => {
       activeProcess = null;
-      const duration = Date.now() - startTime;
-
       logger.error('Claude process error', err);
 
       resolve({
         success: false,
         output: stdout,
         error: err.message,
-        duration,
-        promiseTag: { type: null, content: null, raw: null },
+        duration: Date.now() - startTime,
+        promiseTag: EMPTY_PROMISE_TAG,
       });
     });
   });

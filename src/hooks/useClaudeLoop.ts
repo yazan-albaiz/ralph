@@ -7,7 +7,6 @@ import type {
   RalphConfig,
   LoopState,
   LoopStatus,
-  ParsedPromiseTag,
   HistoryEntry,
   ClaudeProcessResult,
 } from '../types/index.js';
@@ -24,7 +23,6 @@ import {
   notifyComplete,
   notifyBlocked,
   notifyDecision,
-  notifyError,
   notifyMaxIterations,
 } from '../lib/notifications.js';
 import { logger } from '../lib/logger.js';
@@ -66,9 +64,6 @@ export function useClaudeLoop(options: UseClaudeLoopOptions): UseClaudeLoopRetur
   const isPausedRef = useRef(false);
   const startTimeRef = useRef<number>(0);
 
-  /**
-   * Update state and notify of status change
-   */
   const updateStatus = useCallback(
     (status: LoopStatus) => {
       setState((prev) => ({ ...prev, status }));
@@ -77,28 +72,17 @@ export function useClaudeLoop(options: UseClaudeLoopOptions): UseClaudeLoopRetur
     [onStatusChange]
   );
 
-  /**
-   * Run a single iteration
-   */
   const runIteration = useCallback(
     async (iteration: number, prompt: string): Promise<ClaudeProcessResult> => {
       const iterationStartTime = new Date();
-
       onIterationStart?.(iteration);
 
-      // Prepare the prompt with PROJECT_ROOT, loop context, and completion instructions
-      const preparedPrompt = preparePrompt(
-        prompt,
-        config.projectRoot,
-        config.completionSignal,
-        {
-          currentIteration: iteration,
-          maxIterations: config.maxIterations,
-          isFirstIteration: iteration === 1,
-        }
-      );
+      const preparedPrompt = preparePrompt(prompt, config.projectRoot, config.completionSignal, {
+        currentIteration: iteration,
+        maxIterations: config.maxIterations,
+        isFirstIteration: iteration === 1,
+      });
 
-      // Run Claude
       const result = await runClaude({
         prompt: preparedPrompt,
         model: config.model,
@@ -106,10 +90,7 @@ export function useClaudeLoop(options: UseClaudeLoopOptions): UseClaudeLoopRetur
         projectRoot: config.projectRoot,
         onOutput: (chunk) => {
           logger.debug(`[STREAM] Received chunk: ${chunk.length} chars`);
-          setState((prev) => ({
-            ...prev,
-            output: [...prev.output, chunk],
-          }));
+          setState((prev) => ({ ...prev, output: [...prev.output, chunk] }));
           onOutput?.(chunk);
         },
         onError: (error) => {
@@ -117,18 +98,13 @@ export function useClaudeLoop(options: UseClaudeLoopOptions): UseClaudeLoopRetur
         },
       });
 
-      // Fallback: If streaming didn't capture output but result has it, update state
-      // This handles Claude CLI's -p mode which may buffer all output until completion
+      // Fallback for Claude CLI's -p mode which may buffer all output until completion
       if (result.output && result.output.length > 0) {
         logger.debug(`[RESULT] Final output: ${result.output.length} chars`);
         setState((prev) => {
-          // Only update if we didn't capture anything during streaming
           if (prev.output.length === 0) {
             logger.debug('[FALLBACK] Using result output since streaming captured nothing');
-            return {
-              ...prev,
-              output: [result.output],
-            };
+            return { ...prev, output: [result.output] };
           }
           return prev;
         });
@@ -136,13 +112,8 @@ export function useClaudeLoop(options: UseClaudeLoopOptions): UseClaudeLoopRetur
 
       onIterationEnd?.(iteration, result);
 
-      // Add to history
       if (historyRef.current) {
-        const iterationRecord = createIterationRecord(
-          iterationStartTime,
-          result.output,
-          result.promiseTag
-        );
+        const iterationRecord = createIterationRecord(iterationStartTime, result.output, result.promiseTag);
         historyRef.current = addIterationToHistory(historyRef.current, iterationRecord);
       }
 
@@ -151,22 +122,29 @@ export function useClaudeLoop(options: UseClaudeLoopOptions): UseClaudeLoopRetur
     [config, onIterationStart, onIterationEnd, onOutput]
   );
 
-  /**
-   * Main loop execution
-   */
+  const finalizeAndSave = useCallback(
+    async (result: 'completed' | 'max_reached' | 'cancelled') => {
+      const totalDuration = Date.now() - startTimeRef.current;
+      if (historyRef.current) {
+        historyRef.current = finalizeHistoryEntry(historyRef.current, result, totalDuration);
+        await saveHistoryEntry(historyRef.current);
+        onComplete?.(historyRef.current);
+      }
+      return totalDuration;
+    },
+    [onComplete]
+  );
+
   const executeLoop = useCallback(
     async (prompt: string) => {
       isRunningRef.current = true;
       startTimeRef.current = Date.now();
-
-      // Create history entry
       historyRef.current = createHistoryEntry(config, prompt);
 
       let iteration = 0;
       let lastResult: ClaudeProcessResult | null = null;
 
       while (isRunningRef.current && iteration < config.maxIterations) {
-        // Check if paused
         while (isPausedRef.current && isRunningRef.current) {
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
@@ -175,59 +153,36 @@ export function useClaudeLoop(options: UseClaudeLoopOptions): UseClaudeLoopRetur
 
         iteration++;
         setState((prev) => ({ ...prev, currentIteration: iteration }));
-
         logger.info(`Starting iteration ${iteration}/${config.maxIterations}`);
 
         try {
           lastResult = await runIteration(iteration, prompt);
+          setState((prev) => ({ ...prev, lastPromiseTag: lastResult?.promiseTag ?? null }));
 
-          // Update state with result
-          setState((prev) => ({
-            ...prev,
-            lastPromiseTag: lastResult?.promiseTag || null,
-          }));
-
-          // Check for completion
           if (lastResult.promiseTag && indicatesCompletion(lastResult.promiseTag)) {
             logger.ok(`Task completed at iteration ${iteration}`);
             updateStatus('completed');
-
-            const totalDuration = Date.now() - startTimeRef.current;
-            if (historyRef.current) {
-              historyRef.current = finalizeHistoryEntry(historyRef.current, 'completed', totalDuration);
-              await saveHistoryEntry(historyRef.current);
-              onComplete?.(historyRef.current);
-            }
-
+            const totalDuration = await finalizeAndSave('completed');
             await notifyComplete(iteration, totalDuration);
             isRunningRef.current = false;
             return;
           }
 
-          // Check for blocked/decide
           if (lastResult.promiseTag && requiresUserIntervention(lastResult.promiseTag)) {
-            const tagType = lastResult.promiseTag.type;
-            const content = lastResult.promiseTag.content || '';
+            const { type: tagType, content } = lastResult.promiseTag;
+            const message = content ?? '';
+            const isBlocked = tagType === 'BLOCKED';
 
-            if (tagType === 'BLOCKED') {
-              logger.warn(`Blocked at iteration ${iteration}: ${content}`);
-              updateStatus('blocked');
-              await notifyBlocked(content);
-            } else if (tagType === 'DECIDE') {
-              logger.warn(`Decision needed at iteration ${iteration}: ${content}`);
-              updateStatus('decide');
-              await notifyDecision(content);
-            }
+            logger.warn(`${isBlocked ? 'Blocked' : 'Decision needed'} at iteration ${iteration}: ${message}`);
+            updateStatus(isBlocked ? 'blocked' : 'decide');
+            await (isBlocked ? notifyBlocked(message) : notifyDecision(message));
 
-            // Pause the loop
             isPausedRef.current = true;
             continue;
           }
 
-          // Check for errors
           if (!lastResult.success) {
             logger.error(`Iteration ${iteration} failed: ${lastResult.error}`);
-            // Continue anyway - Ralph is persistent
           }
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : String(err);
@@ -236,41 +191,24 @@ export function useClaudeLoop(options: UseClaudeLoopOptions): UseClaudeLoopRetur
         }
       }
 
-      // Handle completion states
       if (iteration >= config.maxIterations) {
         logger.warn(`Max iterations (${config.maxIterations}) reached`);
         updateStatus('max_reached');
-
-        const totalDuration = Date.now() - startTimeRef.current;
-        if (historyRef.current) {
-          historyRef.current = finalizeHistoryEntry(historyRef.current, 'max_reached', totalDuration);
-          await saveHistoryEntry(historyRef.current);
-          onComplete?.(historyRef.current);
-        }
-
+        await finalizeAndSave('max_reached');
         await notifyMaxIterations(config.maxIterations);
       } else if (!isRunningRef.current && state.status !== 'completed') {
         updateStatus('cancelled');
-
-        const totalDuration = Date.now() - startTimeRef.current;
-        if (historyRef.current) {
-          historyRef.current = finalizeHistoryEntry(historyRef.current, 'cancelled', totalDuration);
-          await saveHistoryEntry(historyRef.current);
-          onComplete?.(historyRef.current);
-        }
+        await finalizeAndSave('cancelled');
       }
 
       isRunningRef.current = false;
     },
-    [config, runIteration, updateStatus, onComplete, state.status]
+    [config, runIteration, updateStatus, finalizeAndSave, state.status]
   );
 
-  /**
-   * Start the loop
-   */
   const start = useCallback(
     async (prompt?: string) => {
-      const effectivePrompt = prompt || config.prompt;
+      const effectivePrompt = prompt ?? config.prompt;
 
       if (!effectivePrompt) {
         logger.error('No prompt provided');
@@ -292,17 +230,11 @@ export function useClaudeLoop(options: UseClaudeLoopOptions): UseClaudeLoopRetur
     [config.prompt, executeLoop, updateStatus]
   );
 
-  /**
-   * Pause the loop
-   */
   const pause = useCallback(() => {
     isPausedRef.current = true;
     updateStatus('paused');
   }, [updateStatus]);
 
-  /**
-   * Resume the loop
-   */
   const resume = useCallback(() => {
     isPausedRef.current = false;
     if (isRunningRef.current) {
@@ -310,9 +242,6 @@ export function useClaudeLoop(options: UseClaudeLoopOptions): UseClaudeLoopRetur
     }
   }, [updateStatus]);
 
-  /**
-   * Stop the loop
-   */
   const stop = useCallback(() => {
     isRunningRef.current = false;
     isPausedRef.current = false;
@@ -320,9 +249,6 @@ export function useClaudeLoop(options: UseClaudeLoopOptions): UseClaudeLoopRetur
     updateStatus('cancelled');
   }, [updateStatus]);
 
-  /**
-   * Reset the loop state
-   */
   const reset = useCallback(() => {
     isRunningRef.current = false;
     isPausedRef.current = false;
