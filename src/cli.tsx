@@ -20,9 +20,7 @@ import { logger, setDebugEnabled } from './lib/logger.js';
 import { setNotificationsEnabled, setSoundEnabled } from './lib/notifications.js';
 import { runDockerPreflightChecks } from './lib/docker.js';
 import { promptSandboxFallback } from './lib/prompt.js';
-
-// Package version (will be replaced by build)
-const VERSION = '1.0.4';
+import { version as VERSION } from '../package.json';
 
 // CLI program
 const program = new Command();
