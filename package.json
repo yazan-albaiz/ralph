@@ -1,11 +1,27 @@
 {
-  "name": "ralph-cli",
-  "version": "1.0.0",
+  "name": "@yazangineering/ralph",
+  "version": "0.1.0",
   "description": "Autonomous AI coding loop CLI using Claude Code - named after Ralph Wiggum's naive, relentless persistence",
   "type": "module",
   "main": "dist/cli.js",
   "bin": {
     "ralph": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yazan-albaiz/ralph.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yazan-albaiz/ralph/issues"
+  },
+  "homepage": "https://github.com/yazan-albaiz/ralph#readme",
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "dev": "bun run src/cli.tsx",

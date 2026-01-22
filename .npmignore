@@ -1,0 +1,33 @@
+# Source files (we publish built dist only)
+src/
+tests/
+
+# Config files
+tsconfig.json
+eslint.config.js
+.prettierrc
+.prettierignore
+bun.lock
+
+# Git and GitHub
+.git/
+.github/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Development
+*.log
+npm-debug.log*
+coverage/
+.nyc_output/
+
+# Misc
+*.tgz
