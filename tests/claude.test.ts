@@ -83,6 +83,8 @@ describe('Claude CLI Wrapper', () => {
     });
   });
 
+  // Note: buildSpawnConfig tests are in docker.test.ts
+
   describe('createMockClaudeRunner', () => {
     test('returns mock output', async () => {
       const mockOutput = 'Mock output <promise>COMPLETE</promise>';

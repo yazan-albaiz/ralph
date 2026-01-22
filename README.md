@@ -67,6 +67,8 @@ ralph -m 50 "Implement feature X"
 | `--no-sound` | Disable sound alerts | - |
 | `--debug` | Enable debug logging | false |
 | `--preflight-only` | Only run pre-flight checks | - |
+| `--sandbox` | Run Claude in Docker sandbox | false |
+| `--no-sandbox` | Disable Docker sandbox (default) | - |
 
 ### Keyboard Controls
 
@@ -164,6 +166,43 @@ Ralph runs several checks before starting:
 - Max iterations is reasonable
 
 Run `ralph --preflight-only` to test without starting the loop.
+
+## Docker Sandbox Mode
+
+For enhanced security during AFK or overnight runs, Ralph supports running Claude inside a Docker sandbox container.
+
+### Prerequisites
+
+- Docker Desktop 4.50+ installed and running
+- Docker sandbox plugin enabled
+
+### Usage
+
+```bash
+# Run with Docker sandbox
+ralph --sandbox "Your prompt here"
+
+# Combine with other options
+ralph --sandbox -m 100 -M sonnet ./my-prd.md
+```
+
+### How It Works
+
+When sandbox mode is enabled, Ralph runs Claude via Docker's sandbox feature:
+```bash
+docker sandbox run --credentials host claude [args]
+```
+
+This provides:
+- **Isolated execution**: Claude runs in a container, not directly on your host
+- **Controlled access**: Uses `--credentials host` to pass through your Claude credentials
+- **Same functionality**: All Claude features work normally inside the sandbox
+
+### Fallback Behavior
+
+If Docker sandbox is not available (Docker not installed, not running, or missing the sandbox plugin), Ralph will prompt you to:
+- Continue without sandbox (runs Claude directly)
+- Exit and fix Docker setup
 
 ## Development
 
