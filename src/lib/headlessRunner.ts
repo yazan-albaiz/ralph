@@ -14,7 +14,8 @@ import type {
   HistoryEntry,
 } from '../types/index.js';
 import { runClaude, killActiveProcess } from './claude.js';
-import { preparePrompt, requiresUserIntervention, indicatesCompletion } from './promiseParser.js';
+import { preparePrompt, requiresUserIntervention, indicatesCompletion, parseCommitMessage } from './promiseParser.js';
+import { isGitRepo, getGitStatus, commitChanges, generateDefaultCommitMessage } from './git.js';
 import {
   createHistoryEntry,
   addIterationToHistory,
@@ -142,6 +143,25 @@ export async function runHeadless({ config }: HeadlessRunnerOptions): Promise<vo
       // Record iteration in history
       const iterationRecord = createIterationRecord(iterationStartTime, result.output, result.promiseTag);
       history = addIterationToHistory(history, iterationRecord);
+
+      // Handle auto-commit
+      if (config.autoCommit && isGitRepo(config.projectRoot)) {
+        const gitStatus = getGitStatus(config.projectRoot);
+
+        if (gitStatus.hasChanges) {
+          // Use Claude's commit message if provided, otherwise generate one
+          const commitMessage = parseCommitMessage(result.output) ||
+            generateDefaultCommitMessage(config.projectRoot, iteration);
+
+          const commitResult = commitChanges(config.projectRoot, commitMessage);
+
+          if (commitResult.success) {
+            log('INFO', `Committed: ${commitMessage}`);
+          } else {
+            log('WARN', `Failed to commit: ${commitResult.error}`);
+          }
+        }
+      }
 
       // Check for completion
       if (result.promiseTag && indicatesCompletion(result.promiseTag)) {

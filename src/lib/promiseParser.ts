@@ -16,6 +16,12 @@ const PROMISE_TAG_PATTERNS = {
 };
 
 const ANY_PROMISE_TAG = /<promise>(.+?)<\/promise>/gi;
+const COMMIT_MESSAGE_PATTERN = /<commit_message>([\s\S]*?)<\/commit_message>/i;
+
+export interface ParsedTags {
+  promiseTag: ParsedPromiseTag;
+  commitMessage: string | null;
+}
 
 export function parsePromiseTag(output: string): ParsedPromiseTag {
   const completeMatch = output.match(PROMISE_TAG_PATTERNS.COMPLETE);
@@ -34,6 +40,29 @@ export function parsePromiseTag(output: string): ParsedPromiseTag {
   }
 
   return { type: null, content: null, raw: null };
+}
+
+/**
+ * Parse commit message from output
+ * Format: <commit_message>Your commit message here</commit_message>
+ */
+export function parseCommitMessage(output: string): string | null {
+  const match = output.match(COMMIT_MESSAGE_PATTERN);
+  if (match && match[1]) {
+    // Clean up the message: trim whitespace, normalize newlines
+    return match[1].trim().replace(/\n+/g, ' ').substring(0, 200);
+  }
+  return null;
+}
+
+/**
+ * Parse all Ralph-specific tags from Claude's output
+ */
+export function parseAllTags(output: string): ParsedTags {
+  return {
+    promiseTag: parsePromiseTag(output),
+    commitMessage: parseCommitMessage(output),
+  };
 }
 
 export function containsCompletionSignal(output: string, signal: string): boolean {
@@ -71,16 +100,21 @@ export function createCompletionSuffix(signal: string): string {
 ---
 IMPORTANT INSTRUCTIONS FOR RALPH LOOP:
 
-When you have completed ALL tasks successfully, output exactly:
-${signal}
+When you have completed work in this iteration:
 
-If you are BLOCKED and cannot continue without human intervention, output:
-<promise>BLOCKED: [brief reason why you're blocked]</promise>
+1. If you made code changes that should be committed, provide a commit message:
+   <commit_message>Brief description of changes</commit_message>
 
-If you need a DECISION from the user before continuing, output:
-<promise>DECIDE: [brief question for the user]</promise>
+2. If ALL tasks are fully complete, output:
+   ${signal}
 
-Do not output any promise tags until you've attempted to complete the tasks or determined you cannot proceed.
+3. If you are BLOCKED and cannot continue without human intervention, output:
+   <promise>BLOCKED: [brief reason why you're blocked]</promise>
+
+4. If you need a DECISION from the user before continuing, output:
+   <promise>DECIDE: [brief question for the user]</promise>
+
+Do not output promise tags until you've attempted to complete the tasks or determined you cannot proceed.
 ---`;
 }
 
@@ -107,6 +141,8 @@ export function preparePrompt(
 
 export const promiseParser = {
   parsePromiseTag,
+  parseCommitMessage,
+  parseAllTags,
   containsCompletionSignal,
   findAllPromiseTags,
   requiresUserIntervention,

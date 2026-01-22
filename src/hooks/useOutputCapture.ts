@@ -1,8 +1,8 @@
 /**
- * useOutputCapture Hook - Live output streaming and buffering
+ * useOutputCapture Hook - Live output streaming and buffering with throttling
  */
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 interface UseOutputCaptureReturn {
   output: string[];
@@ -10,46 +10,89 @@ interface UseOutputCaptureReturn {
   clearOutput: () => void;
   getFullOutput: () => string;
   getRecentLines: (n: number) => string[];
+  finalFlush: () => void;
 }
 
 interface UseOutputCaptureOptions {
   maxBufferSize?: number;
   maxLines?: number;
+  throttleMs?: number;
 }
 
 /**
- * Hook for capturing and managing output streams
+ * Hook for capturing and managing output streams with throttling to prevent TUI flashing
  */
 export function useOutputCapture(options: UseOutputCaptureOptions = {}): UseOutputCaptureReturn {
-  const { maxBufferSize = 100, maxLines = 50 } = options;
+  const { maxBufferSize = 100, maxLines = 50, throttleMs = 100 } = options;
 
   const [output, setOutput] = useState<string[]>([]);
   const bufferRef = useRef<string[]>([]);
+  const pendingChunksRef = useRef<string[]>([]);
+  const lastUpdateRef = useRef<number>(0);
+  const pendingUpdateRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
-   * Add a chunk of output to the buffer
+   * Flush pending chunks to buffer and update state
+   */
+  const flushBuffer = useCallback(() => {
+    if (pendingChunksRef.current.length === 0) return;
+
+    // Add pending chunks to buffer
+    bufferRef.current.push(...pendingChunksRef.current);
+    pendingChunksRef.current = [];
+
+    // Trim buffer if it gets too large
+    if (bufferRef.current.length > maxBufferSize * 2) {
+      const allLines = bufferRef.current.flatMap((c) => c.split('\n'));
+      const trimmed = allLines.slice(-maxBufferSize);
+      bufferRef.current = [trimmed.join('\n')];
+    }
+
+    // Update state
+    setOutput([...bufferRef.current]);
+    lastUpdateRef.current = Date.now();
+  }, [maxBufferSize]);
+
+  /**
+   * Add a chunk of output to the buffer (throttled)
    */
   const addOutput = useCallback(
     (chunk: string) => {
-      bufferRef.current.push(chunk);
+      // Add to pending chunks
+      pendingChunksRef.current.push(chunk);
 
-      // Trim buffer if it gets too large
-      if (bufferRef.current.length > maxBufferSize * 2) {
-        const allLines = bufferRef.current.flatMap((c) => c.split('\n'));
-        const trimmed = allLines.slice(-maxBufferSize);
-        bufferRef.current = [trimmed.join('\n')];
+      const now = Date.now();
+      const timeSinceLastUpdate = now - lastUpdateRef.current;
+
+      // If enough time has passed, flush immediately
+      if (timeSinceLastUpdate >= throttleMs) {
+        if (pendingUpdateRef.current) {
+          clearTimeout(pendingUpdateRef.current);
+          pendingUpdateRef.current = null;
+        }
+        flushBuffer();
+      } else {
+        // Schedule a flush if not already scheduled
+        if (!pendingUpdateRef.current) {
+          pendingUpdateRef.current = setTimeout(() => {
+            pendingUpdateRef.current = null;
+            flushBuffer();
+          }, throttleMs - timeSinceLastUpdate);
+        }
       }
-
-      // Update state (batched for performance)
-      setOutput([...bufferRef.current]);
     },
-    [maxBufferSize]
+    [throttleMs, flushBuffer]
   );
 
   /**
    * Clear all output
    */
   const clearOutput = useCallback(() => {
+    if (pendingUpdateRef.current) {
+      clearTimeout(pendingUpdateRef.current);
+      pendingUpdateRef.current = null;
+    }
+    pendingChunksRef.current = [];
     bufferRef.current = [];
     setOutput([]);
   }, []);
@@ -58,7 +101,8 @@ export function useOutputCapture(options: UseOutputCaptureOptions = {}): UseOutp
    * Get the full concatenated output
    */
   const getFullOutput = useCallback(() => {
-    return bufferRef.current.join('');
+    // Include pending chunks that haven't been flushed yet
+    return [...bufferRef.current, ...pendingChunksRef.current].join('');
   }, []);
 
   /**
@@ -66,11 +110,32 @@ export function useOutputCapture(options: UseOutputCaptureOptions = {}): UseOutp
    */
   const getRecentLines = useCallback(
     (n: number = maxLines) => {
-      const allLines = bufferRef.current.flatMap((c) => c.split('\n'));
+      const allChunks = [...bufferRef.current, ...pendingChunksRef.current];
+      const allLines = allChunks.flatMap((c) => c.split('\n'));
       return allLines.slice(-n);
     },
     [maxLines]
   );
+
+  /**
+   * Force flush all pending output (call when iteration completes)
+   */
+  const finalFlush = useCallback(() => {
+    if (pendingUpdateRef.current) {
+      clearTimeout(pendingUpdateRef.current);
+      pendingUpdateRef.current = null;
+    }
+    flushBuffer();
+  }, [flushBuffer]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (pendingUpdateRef.current) {
+        clearTimeout(pendingUpdateRef.current);
+      }
+    };
+  }, []);
 
   return {
     output,
@@ -78,6 +143,7 @@ export function useOutputCapture(options: UseOutputCaptureOptions = {}): UseOutp
     clearOutput,
     getFullOutput,
     getRecentLines,
+    finalFlush,
   };
 }
 

@@ -18,6 +18,7 @@ export interface RalphConfig {
   projectRoot: string;
   sandbox: boolean;
   headless: boolean;
+  autoCommit: boolean;
 }
 
 // Default configuration values
@@ -33,6 +34,7 @@ export const DEFAULT_CONFIG: Omit<RalphConfig, 'prompt' | 'isFile' | 'projectRoo
   enableSound: true,
   sandbox: false,
   headless: false,
+  autoCommit: true,
 };
 
 // Timing and Performance

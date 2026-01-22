@@ -71,6 +71,8 @@ ralph -m 50 "Implement feature X"
 | `--preflight-only` | Only run pre-flight checks | - |
 | `--sandbox` | Run Claude in Docker sandbox | false |
 | `--no-sandbox` | Disable Docker sandbox (default) | - |
+| `--auto-commit` | Commit after each iteration | true |
+| `--no-auto-commit` | Disable automatic commits | - |
 
 ### Keyboard Controls
 
@@ -243,6 +245,40 @@ All runs are saved to `~/.ralph/history/` as JSON files:
   "totalDuration": 180000
 }
 ```
+
+## Automatic Commits
+
+By default, Ralph commits changes after each successful iteration. This provides:
+- Safety against interrupted runs
+- Clear history of what each iteration accomplished
+- Easy rollback if something goes wrong
+
+Claude provides commit messages via the `<commit_message>` tag. If not provided, Ralph generates a default message based on the git diff.
+
+```bash
+# Disable automatic commits
+ralph ./task.md --no-auto-commit
+
+# Re-enable (default)
+ralph ./task.md --auto-commit
+```
+
+### Commit Message Tag
+
+In your prompt, instruct Claude to provide commit messages:
+
+```markdown
+When you make code changes, provide a commit message:
+<commit_message>Brief description of changes</commit_message>
+```
+
+## Known Limitations
+
+### Permission Prompts in Sub-agents
+
+Claude Code has a known bug ([#12261](https://github.com/anthropics/claude-code/issues/12261)) where sub-agents (like Plan mode, ultrathink) may still prompt for permissions even with `--dangerously-skip-permissions`.
+
+**Workaround:** Avoid using `/plan` or complex sub-agent features in AFK ralph loops. Keep prompts focused on direct implementation tasks.
 
 ## Pre-flight Checks
 

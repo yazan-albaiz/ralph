@@ -35,3 +35,6 @@ coverage/
 
 # Claude Code local config
 .claude/
+
+# Ralph implementation artifacts (not to be confused with progress.txt convention)
+PROGRESS.md

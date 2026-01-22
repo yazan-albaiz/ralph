@@ -11,7 +11,8 @@ import type {
   ClaudeProcessResult,
 } from '../types/index.js';
 import { runClaude, killActiveProcess } from '../lib/claude.js';
-import { preparePrompt, requiresUserIntervention, indicatesCompletion } from '../lib/promiseParser.js';
+import { preparePrompt, requiresUserIntervention, indicatesCompletion, parseCommitMessage } from '../lib/promiseParser.js';
+import { isGitRepo, getGitStatus, commitChanges, generateDefaultCommitMessage } from '../lib/git.js';
 import {
   createHistoryEntry,
   addIterationToHistory,
@@ -113,6 +114,25 @@ export function useClaudeLoop(options: UseClaudeLoopOptions): UseClaudeLoopRetur
       if (historyRef.current) {
         const iterationRecord = createIterationRecord(iterationStartTime, result.output, result.promiseTag);
         historyRef.current = addIterationToHistory(historyRef.current, iterationRecord);
+      }
+
+      // Handle auto-commit
+      if (config.autoCommit && isGitRepo(config.projectRoot)) {
+        const status = getGitStatus(config.projectRoot);
+
+        if (status.hasChanges) {
+          // Use Claude's commit message if provided, otherwise generate one
+          const commitMessage = parseCommitMessage(result.output) ||
+            generateDefaultCommitMessage(config.projectRoot, iteration);
+
+          const commitResult = commitChanges(config.projectRoot, commitMessage);
+
+          if (commitResult.success) {
+            logger.info(`Committed: ${commitMessage}`);
+          } else {
+            logger.warn(`Failed to commit: ${commitResult.error}`);
+          }
+        }
       }
 
       return result;

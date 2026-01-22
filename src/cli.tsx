@@ -45,6 +45,8 @@ program
   .option('--preflight-only', 'Only run pre-flight checks')
   .option('--sandbox', 'Run Claude in Docker sandbox for isolation')
   .option('--no-sandbox', 'Disable Docker sandbox (default)')
+  .option('--auto-commit', 'Commit after each iteration (default: true)')
+  .option('--no-auto-commit', 'Disable automatic commits')
   .action(async (promptArg: string | undefined, options) => {
     // Validate conflicting options
     if (options.unlimited && options.max !== DEFAULT_CONFIG.maxIterations) {
@@ -99,6 +101,7 @@ program
       projectRoot: process.cwd(),
       sandbox: options.sandbox || false,
       headless: options.headless || false,
+      autoCommit: options.autoCommit !== false,
     };
 
     // Run Docker sandbox preflight checks if sandbox mode is enabled
