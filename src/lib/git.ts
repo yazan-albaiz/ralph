@@ -3,6 +3,7 @@
  */
 
 import { execSync, spawnSync } from 'node:child_process';
+import { logger } from './logger.js';
 
 export interface GitStatus {
   hasChanges: boolean;
@@ -64,12 +65,13 @@ export function getGitStatus(cwd: string): GitStatus {
 }
 
 /**
- * Stage all changes and commit
+ * Stage modifications to tracked files and commit
+ * Uses `git add -u` to avoid accidentally committing untracked files like .env or secrets
  */
 export function commitChanges(cwd: string, message: string): CommitResult {
   try {
-    // Stage all changes
-    execSync('git add -A', { cwd, stdio: 'pipe' });
+    // Stage modifications to tracked files only (safer than -A)
+    execSync('git add -u', { cwd, stdio: 'pipe' });
 
     // Commit with message
     const result = spawnSync('git', ['commit', '-m', message], {
@@ -94,14 +96,13 @@ export function commitChanges(cwd: string, message: string): CommitResult {
 }
 
 /**
- * Generate a default commit message based on git diff
+ * Generate a default commit message based on current changes
+ * Called before staging, so uses unstaged diff to analyze changes
  */
 export function generateDefaultCommitMessage(cwd: string, iteration: number): string {
   try {
-    // First stage changes to see what would be committed
-    execSync('git add -A', { cwd, stdio: 'pipe' });
-
-    const diffStat = execSync('git diff --cached --stat', { cwd, encoding: 'utf-8' });
+    // Use unstaged diff since files aren't staged yet when this is called
+    const diffStat = execSync('git diff --stat', { cwd, encoding: 'utf-8' });
     const lines = diffStat.trim().split('\n');
 
     if (lines.length > 0) {
@@ -111,8 +112,8 @@ export function generateDefaultCommitMessage(cwd: string, iteration: number): st
         return `ralph: iteration ${iteration} - ${summaryLine.trim()}`;
       }
     }
-  } catch {
-    // Ignore errors
+  } catch (err) {
+    logger.debug(`Failed to generate commit message from diff: ${err}`);
   }
 
   return `ralph: iteration ${iteration} complete`;

@@ -188,6 +188,21 @@ export const DEFAULT_CONFIG = {
 | `unlimited` | false | Run until completion signal |
 | `headless` | false | No TUI, console output only |
 | `sandbox` | false | Run in Docker sandbox |
+| `autoCommit` | true | Commit after each iteration |
+
+### Auto-Commit Feature
+
+Ralph automatically commits changes after each successful iteration (default: ON).
+
+**Related files:**
+- `src/lib/git.ts` - Git operations (isGitRepo, getGitStatus, commitChanges)
+- `src/lib/promiseParser.ts` - Parses `<commit_message>` tag from Claude output
+
+**Safety:** Uses `git add -u` (not `-A`) to only stage modifications to tracked files, preventing accidental commits of `.env` files or other untracked secrets.
+
+**Commit message sources (in order of preference):**
+1. Claude's `<commit_message>` tag in output
+2. Auto-generated from `git diff --stat`
 
 ### Docker Sandbox Mode
 

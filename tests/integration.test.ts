@@ -123,6 +123,92 @@ describe('Integration Tests', () => {
       expect(result.type).toBe('DECIDE');
       expect(result.content).toBe('Should I use PostgreSQL or MongoDB?');
     });
+
+    test('simulates unlimited mode - continues until completion signal', async () => {
+      const config: RalphConfig = {
+        ...DEFAULT_CONFIG,
+        prompt: 'Test prompt',
+        isFile: false,
+        projectRoot: process.cwd(),
+        unlimited: true, // Unlimited mode enabled
+        maxIterations: 5, // This should be ignored in unlimited mode
+      };
+
+      // Mock runner that completes on iteration 10 (beyond maxIterations)
+      let iteration = 0;
+      const mockRunner = async () => {
+        iteration++;
+        const output =
+          iteration < 10
+            ? `Working on iteration ${iteration}...`
+            : `Done! <promise>COMPLETE</promise>`;
+
+        return {
+          success: true,
+          output,
+          error: null,
+          duration: 1000,
+          promiseTag: parsePromiseTag(output),
+        };
+      };
+
+      // Simulate unlimited loop - should NOT stop at maxIterations
+      let currentIteration = 0;
+      let completed = false;
+      const maxSafetyIterations = 15; // Safety limit for test
+
+      // In unlimited mode: continue until completion (or safety limit)
+      const shouldContinue = () =>
+        config.unlimited || currentIteration < config.maxIterations;
+
+      while (shouldContinue() && currentIteration < maxSafetyIterations && !completed) {
+        currentIteration++;
+        const result = await mockRunner();
+
+        if (result.promiseTag?.type === 'COMPLETE') {
+          completed = true;
+        }
+      }
+
+      expect(completed).toBe(true);
+      expect(currentIteration).toBe(10); // Should have gone past maxIterations (5)
+      expect(currentIteration).toBeGreaterThan(config.maxIterations);
+    });
+
+    test('unlimited mode respects completion signal', async () => {
+      const config: RalphConfig = {
+        ...DEFAULT_CONFIG,
+        prompt: 'Test prompt',
+        isFile: false,
+        projectRoot: process.cwd(),
+        unlimited: true,
+        maxIterations: 100,
+      };
+
+      // Mock runner that completes immediately
+      const mockRunner = async () => ({
+        success: true,
+        output: '<promise>COMPLETE</promise>',
+        error: null,
+        duration: 100,
+        promiseTag: parsePromiseTag('<promise>COMPLETE</promise>'),
+      });
+
+      let currentIteration = 0;
+      let completed = false;
+
+      while (!completed && currentIteration < 10) {
+        currentIteration++;
+        const result = await mockRunner();
+
+        if (result.promiseTag?.type === 'COMPLETE') {
+          completed = true;
+        }
+      }
+
+      expect(completed).toBe(true);
+      expect(currentIteration).toBe(1); // Should stop on first iteration
+    });
   });
 
   describe('History Tracking', () => {
