@@ -53,9 +53,25 @@ describe('Pre-flight Checks', () => {
       expect(modelCheck!.fatal).toBe(true);
     });
 
-    test('fails with non-existent prompt file', async () => {
+    test('passes when file prompt has content (file was already loaded)', async () => {
+      // When isFile is true, prompt contains the loaded content, not the file path
+      // This simulates a successfully loaded file
       const config = createTestConfig({
-        prompt: '/non/existent/file.md',
+        prompt: '# File Content\n\nThis is the loaded content from a file.',
+        isFile: true,
+      });
+      const result = await runPreflightChecks(config);
+
+      const fileCheck = result.checks.find((c) => c.name === 'Prompt File');
+      expect(fileCheck).toBeDefined();
+      expect(fileCheck!.passed).toBe(true);
+      expect(fileCheck!.message).toBe('Prompt loaded from file successfully');
+    });
+
+    test('fails when file prompt is empty', async () => {
+      // Simulates a file that was empty or somehow failed to load content
+      const config = createTestConfig({
+        prompt: '',
         isFile: true,
       });
       const result = await runPreflightChecks(config);
