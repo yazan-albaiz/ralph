@@ -199,7 +199,7 @@ async function checkNoExistingProcess(): Promise<PreflightCheck> {
  * Check if Docker sandbox plugin is available
  * Only runs when sandbox mode is enabled
  */
-async function checkDockerSandbox(): Promise<PreflightCheck> {
+function checkDockerSandbox(): PreflightCheck {
   try {
     // First check if Docker is running
     const dockerInfo = spawnSync('docker', ['info'], {
@@ -241,8 +241,14 @@ async function checkDockerSandbox(): Promise<PreflightCheck> {
         };
       }
 
-      // Some other error - might still work, but warn
-      // Let it proceed but the actual sandbox run might fail
+      // Handle other non-zero exit codes (permissions, network, etc.)
+      const errorDetail = stderr.trim() || `Unknown error (exit code: ${sandboxCheck.status})`;
+      return {
+        name: 'Docker Sandbox',
+        passed: false,
+        message: `Docker sandbox check failed: ${errorDetail}`,
+        fatal: true,
+      };
     }
 
     return {
@@ -297,7 +303,7 @@ export async function runPreflightChecks(config: RalphConfig): Promise<Preflight
 
   // Add Docker sandbox check if sandbox mode is enabled
   if (config.sandbox) {
-    baseChecks.push(checkDockerSandbox());
+    baseChecks.push(Promise.resolve(checkDockerSandbox()));
   }
 
   const checks: PreflightCheck[] = await Promise.all(baseChecks);
