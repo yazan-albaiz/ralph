@@ -6,6 +6,7 @@ import { existsSync } from 'node:fs';
 import { access, constants } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { spawnSync } from 'node:child_process';
 import type { PreflightCheck, PreflightResult, RalphConfig } from '../types/index.js';
 import { logger } from './logger.js';
 
@@ -195,6 +196,72 @@ async function checkNoExistingProcess(): Promise<PreflightCheck> {
 }
 
 /**
+ * Check if Docker sandbox plugin is available
+ * Only runs when sandbox mode is enabled
+ */
+async function checkDockerSandbox(): Promise<PreflightCheck> {
+  try {
+    // First check if Docker is running
+    const dockerInfo = spawnSync('docker', ['info'], {
+      encoding: 'utf-8',
+      timeout: 10000,
+    });
+
+    if (dockerInfo.status !== 0) {
+      return {
+        name: 'Docker Sandbox',
+        passed: false,
+        message: 'Docker is not running. Start Docker Desktop first.',
+        fatal: true,
+      };
+    }
+
+    // Check if sandbox subcommand exists by running 'docker sandbox ls'
+    // This is better than --help because --help might succeed even if plugin is broken
+    const sandboxCheck = spawnSync('docker', ['sandbox', 'ls'], {
+      encoding: 'utf-8',
+      timeout: 10000,
+    });
+
+    // If sandbox command doesn't exist, stderr will contain error about unknown command
+    if (sandboxCheck.status !== 0) {
+      const stderr = sandboxCheck.stderr || '';
+
+      if (
+        stderr.includes('is not a docker command') ||
+        stderr.includes('unknown command') ||
+        stderr.includes('Unknown command')
+      ) {
+        return {
+          name: 'Docker Sandbox',
+          passed: false,
+          message:
+            'Docker sandbox plugin not found. This feature requires Docker Desktop 4.50+. OrbStack, Colima, and other Docker alternatives do not support this feature.',
+          fatal: true,
+        };
+      }
+
+      // Some other error - might still work, but warn
+      // Let it proceed but the actual sandbox run might fail
+    }
+
+    return {
+      name: 'Docker Sandbox',
+      passed: true,
+      message: 'Docker sandbox plugin is available',
+      fatal: false,
+    };
+  } catch (error) {
+    return {
+      name: 'Docker Sandbox',
+      passed: false,
+      message: `Failed to check Docker sandbox: ${error}`,
+      fatal: true,
+    };
+  }
+}
+
+/**
  * Check max iterations is reasonable
  */
 function checkMaxIterations(config: RalphConfig): PreflightCheck {
@@ -217,7 +284,8 @@ function checkMaxIterations(config: RalphConfig): PreflightCheck {
 export async function runPreflightChecks(config: RalphConfig): Promise<PreflightResult> {
   logger.info('Running pre-flight checks...');
 
-  const checks: PreflightCheck[] = await Promise.all([
+  // Base checks that always run
+  const baseChecks: Promise<PreflightCheck>[] = [
     checkClaudeCli(),
     checkPromptFile(config),
     checkGitRepo(config),
@@ -225,7 +293,14 @@ export async function runPreflightChecks(config: RalphConfig): Promise<Preflight
     Promise.resolve(checkModelValid(config)),
     checkNoExistingProcess(),
     Promise.resolve(checkMaxIterations(config)),
-  ]);
+  ];
+
+  // Add Docker sandbox check if sandbox mode is enabled
+  if (config.sandbox) {
+    baseChecks.push(checkDockerSandbox());
+  }
+
+  const checks: PreflightCheck[] = await Promise.all(baseChecks);
 
   const errors = checks.filter((c) => !c.passed && c.fatal);
   const warnings = checks.filter((c) => !c.passed && !c.fatal);
