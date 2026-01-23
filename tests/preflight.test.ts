@@ -182,4 +182,30 @@ describe('Pre-flight Checks', () => {
       expect(typeof preflight.formatPreflightResults).toBe('function');
     });
   });
+
+  describe('Docker Sandbox Preflight', () => {
+    test('skips Docker sandbox check when sandbox mode is disabled', async () => {
+      const config = createTestConfig({ sandbox: false });
+      const result = await runPreflightChecks(config);
+
+      const sandboxCheck = result.checks.find((c) => c.name === 'Docker Sandbox');
+      expect(sandboxCheck).toBeUndefined();
+    });
+
+    test('includes Docker sandbox check when sandbox mode is enabled', async () => {
+      const config = createTestConfig({ sandbox: true });
+      const result = await runPreflightChecks(config);
+
+      const sandboxCheck = result.checks.find((c) => c.name === 'Docker Sandbox');
+      expect(sandboxCheck).toBeDefined();
+
+      // The check will pass or fail depending on system state (Docker installed/running)
+      // If it failed, verify the error is properly formatted
+      if (!sandboxCheck!.passed) {
+        expect(sandboxCheck!.fatal).toBe(true);
+        expect(sandboxCheck!.message.length).toBeGreaterThan(0);
+        expect(sandboxCheck!.message.toLowerCase()).toContain('docker');
+      }
+    });
+  });
 });
