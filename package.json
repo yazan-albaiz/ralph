@@ -1,6 +1,6 @@
 {
   "name": "@yazangineering/ralph",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Autonomous AI coding loop CLI using Claude Code - named after Ralph Wiggum's naive, relentless persistence",
   "type": "module",
   "main": "dist/cli.js",

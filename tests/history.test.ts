@@ -3,8 +3,6 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { rm, mkdir } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { setSilentMode } from '../src/lib/logger.js';
@@ -19,8 +17,7 @@ import {
 import type { RalphConfig, ParsedPromiseTag } from '../src/types/index.js';
 
 // Use a test directory to avoid polluting user's ~/.ralph
-const TEST_RALPH_DIR = join(homedir(), '.ralph-test');
-const TEST_HISTORY_DIR = join(TEST_RALPH_DIR, 'history');
+const _TEST_RALPH_DIR = join(homedir(), '.ralph-test');
 
 describe('History Management', () => {
   beforeEach(() => {

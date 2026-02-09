@@ -3,10 +3,6 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { existsSync } from 'node:fs';
-import { mkdir, rm } from 'node:fs/promises';
-import { join } from 'node:path';
-import { homedir } from 'node:os';
 import { setSilentMode } from '../src/lib/logger.js';
 import { runPreflightChecks } from '../src/lib/preflight.js';
 import { parsePromiseTag, preparePrompt } from '../src/lib/promiseParser.js';
@@ -176,7 +172,8 @@ describe('Integration Tests', () => {
     });
 
     test('unlimited mode respects completion signal', async () => {
-      const config: RalphConfig = {
+      // Config for context - unlimited mode with high max
+      const _config: RalphConfig = {
         ...DEFAULT_CONFIG,
         prompt: 'Test prompt',
         isFile: false,

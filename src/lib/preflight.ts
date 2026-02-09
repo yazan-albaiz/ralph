@@ -3,7 +3,6 @@
  */
 
 import { existsSync } from 'node:fs';
-import { access, constants } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { spawnSync } from 'node:child_process';
@@ -35,18 +34,6 @@ async function commandExists(command: string): Promise<boolean> {
 async function isGitRepo(path: string): Promise<boolean> {
   const gitDir = join(path, '.git');
   return existsSync(gitDir);
-}
-
-/**
- * Check if a file is readable
- */
-async function isFileReadable(path: string): Promise<boolean> {
-  try {
-    await access(path, constants.R_OK);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /**

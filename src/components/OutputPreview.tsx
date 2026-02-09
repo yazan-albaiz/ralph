@@ -34,6 +34,7 @@ function truncateLine(line: string, maxWidth: number): string {
   for (let i = 0; i < line.length; i++) {
     if (line[i] === '\x1B') {
       // Skip ANSI sequence
+      // eslint-disable-next-line no-control-regex
       const match = line.slice(i).match(/^\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/);
       if (match) {
         i += match[0].length - 1;

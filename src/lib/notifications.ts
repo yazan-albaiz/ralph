@@ -4,7 +4,6 @@
 
 import notifier from 'node-notifier';
 import beeper from 'beeper';
-import { join } from 'node:path';
 import type { NotificationPayload, NotificationType } from '../types/index.js';
 import { logger } from './logger.js';
 

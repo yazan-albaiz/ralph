@@ -137,8 +137,6 @@ export function formatTimingStats(stats: TimingStats): string {
   };
 
   const deltaSign = stats.lastDelta >= 0 ? '+' : '';
-  const deltaColor =
-    stats.deltaDirection === 'down' ? 'green' : stats.deltaDirection === 'up' ? 'red' : 'yellow';
 
   return [
     `Total: ${formatDuration(stats.totalElapsed)}`,

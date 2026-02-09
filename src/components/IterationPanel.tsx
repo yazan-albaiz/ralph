@@ -62,7 +62,7 @@ export function IterationPanel({
   status,
   duration,
   promiseTag,
-  output = [],
+  output: _output = [],
   unlimited = false,
 }: IterationPanelProps) {
   const statusDisplay = getStatusDisplay(status);

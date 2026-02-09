@@ -13,13 +13,6 @@ interface HeaderProps {
   totalElapsed: number;
 }
 
-/**
- * Format iteration display based on unlimited mode
- */
-function formatIterationDisplay(iteration: number, maxIterations: number, unlimited: boolean): string {
-  return unlimited ? `${iteration}` : `${iteration}/${maxIterations}`;
-}
-
 // Status colors and icons
 const STATUS_CONFIG: Record<LoopStatus, { icon: string; color: string }> = {
   idle: { icon: '○', color: 'gray' },

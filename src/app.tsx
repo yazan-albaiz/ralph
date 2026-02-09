@@ -90,7 +90,7 @@ export function App({ config }: AppProps) {
   // Note: Output is now captured internally by useClaudeLoop (loop.state.output)
 
   // Exit handler hook
-  const { exitRequested, forceExit } = useExitHandler({
+  const { exitRequested } = useExitHandler({
     onExit: async () => {
       loop.stop();
       logger.info('Ralph loop stopped by user');
@@ -138,7 +138,7 @@ export function App({ config }: AppProps) {
   }, [phase, loop]);
 
   // Handle keyboard input
-  useInput((input, key) => {
+  useInput((input, _key) => {
     // 'q' to quit
     if (input === 'q') {
       loop.stop();
